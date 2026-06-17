@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#f6c945" />
+  <title>От бомжа до президента</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">День <span id="dayLabel">1</span> · <span id="timeLabel">08:00</span></div>
+        <h1 id="screenTitle">Главная</h1>
+      </div>
+      <button class="icon-button" id="helpButton" aria-label="Помощь">?</button>
+    </header>
+
+    <main>
+      <section class="screen active" data-screen="home">
+        <article class="hero-card">
+          <div class="hero-orb"></div>
+          <div class="avatar-wrap">
+            <div class="avatar" id="avatar">🧔</div>
+            <div class="rank-badge" id="rankBadge">Бомж</div>
+          </div>
+          <div class="hero-copy">
+            <div class="muted small">Текущий статус</div>
+            <h2 id="statusTitle">Бомж</h2>
+            <p id="statusText">Ройтесь в мусорках, клянчите мелочь и постарайтесь не загнуться.</p>
+          </div>
+        </article>
+
+        <div class="money-grid">
+          <article class="money-card dark"><span>Рубли</span><strong id="rublesValue">120 ₽</strong></article>
+          <article class="money-card"><span>Доллары</span><strong id="dollarsValue">$0</strong><small class="rate-line flat" id="exchangeRateValue">База 92.00 ₽</small></article>
+        </div>
+
+        <button class="exchange-home-button" data-open-exchange>
+          <span class="exchange-home-icon">💱</span>
+          <span class="exchange-home-copy"><strong>Обмен валют</strong><small id="homeExchangeRate" class="exchange-home-rate flat">Купить 94.00 ₽ · продать 90.00 ₽</small></span>
+          <span class="exchange-home-arrow">›</span>
+        </button>
+
+        <article class="panel">
+          <div class="section-head"><h3>Состояние</h3><span class="muted small">Не допускайте нуля</span></div>
+          <div class="stats-list" id="statsList"></div>
+        </article>
+
+        <article class="panel">
+          <div class="section-head"><h3>Быстрые действия</h3><button class="text-button" data-go="actions">Все действия</button></div>
+          <div class="quick-grid" id="quickActions"></div>
+        </article>
+
+        <article class="panel goal-panel">
+          <div>
+            <div class="muted small">Следующая цель</div>
+            <h3 id="goalTitle">Бомж с шабашками</h3>
+            <p id="goalText">Заработайте первые 5 000 ₽.</p>
+          </div>
+          <div class="goal-progress">
+            <strong id="goalPercent">0%</strong>
+            <div class="progress"><div class="progress-fill" id="goalBar"></div></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="screen" data-screen="actions">
+        <div class="category-row" id="categoryRow"></div>
+        <div class="cards-list" id="actionsList"></div>
+      </section>
+
+      <section class="screen" data-screen="career">
+        <article class="panel career-summary">
+          <div>
+            <div class="muted small">Текущая ступень</div>
+            <h2 id="careerTitle">Бомж</h2>
+            <p id="careerText">Ни жилья, ни работы, ни нормальной еды. Надо выжить.</p>
+          </div>
+          <div class="career-icon" id="careerIcon">🪙</div>
+        </article>
+        <div class="timeline" id="careerTimeline"></div>
+      </section>
+
+      <section class="screen" data-screen="assets">
+        <article class="panel">
+          <div class="section-head"><h3>Жильё</h3><span class="pill" id="homeLabel">Картонка под мостом</span></div>
+          <div class="cards-list compact" id="housingList"></div>
+        </article>
+        <article class="panel">
+          <div class="section-head"><h3>Активы</h3><span class="muted small">Пассивный доход</span></div>
+          <div class="cards-list compact" id="assetList"></div>
+        </article>
+      </section>
+
+      <section class="screen" data-screen="profile">
+        <article class="panel profile-card">
+          <div class="profile-avatar" id="profileAvatar">🧔</div>
+          <h2 id="profileName">Игрок</h2>
+          <p id="profileRank">Самое дно</p>
+        </article>
+        <article class="panel">
+          <h3>Развитие</h3>
+          <div class="dev-grid" id="developmentStats"></div>
+        </article>
+        <article class="panel">
+          <h3>Статистика</h3>
+          <div class="info-list" id="gameStats"></div>
+        </article>
+        <button class="danger-button" id="resetButton">Начать игру заново</button>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-target="home"><span>🏠</span><small>Главная</small></button>
+      <button class="nav-item" data-target="actions"><span>⚡</span><small>Действия</small></button>
+      <button class="nav-item" data-target="career"><span>📈</span><small>Карьера</small></button>
+      <button class="nav-item" data-target="assets"><span>🏢</span><small>Имущество</small></button>
+      <button class="nav-item" data-target="profile"><span>👤</span><small>Профиль</small></button>
+    </nav>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="modal-backdrop hidden" id="modalBackdrop">
+    <div class="modal">
+      <div class="grabber"></div>
+      <div class="modal-icon" id="modalIcon">🎲</div>
+      <h2 id="modalTitle">Событие</h2>
+      <p id="modalText"></p>
+      <div class="modal-choices" id="modalChoices"></div>
+      <button class="secondary-button" id="modalClose">Закрыть</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
