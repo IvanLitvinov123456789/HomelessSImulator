@@ -7,6 +7,7 @@ if (tg) {
 }
 
 const STORAGE_KEY = 'street_to_president_v1';
+const CRITICAL_LIMIT_HOURS = 24;
 const clamp = (v, min = 0, max = 100) => Math.max(min, Math.min(max, v));
 const fmt = n => Math.round(n).toLocaleString('ru-RU');
 const random = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
@@ -16,7 +17,7 @@ const clampRate = rate => Math.max(30, Math.min(110, Math.round(rate * 100) / 10
 const defaultState = {
   rubles: 120, dollars: 0,
   exchangeRate: 92.00, previousExchangeRate: 92.00, exchangeRateBias: 0,
-  health: 72, hunger: 52, happiness: 35, energy: 80,
+  health: 72, hunger: 52, happiness: 35,
   education: 0, reputation: 0, connections: 0, popularity: 0, influence: 0,
   day: 1, hour: 8, careerIndex: 0, homeId: 'street', assets: {},
   totalEarned: 0, totalDollarEarned: 0, totalSpent: 0, actionsDone: 0, daysSurvived: 1,
@@ -33,53 +34,53 @@ const categories = [
 ];
 
 const actions = [
-  {id:'find_food',cat:'food',icon:'🗑️',name:'Поискать еду у магазина',desc:'Проверить контейнеры возле магазина и найти что-нибудь съедобное.',hours:2,energy:-8,hunger:18,happiness:-1,health:-2,min:0,max:0},
-  {id:'bread',cat:'food',icon:'🍞',name:'Купить батон',desc:'Простой и дешёвый перекус.',hours:1,energy:-1,hunger:28,happiness:1,cost:80},
-  {id:'shawarma',cat:'food',icon:'🌯',name:'Купить шаурму',desc:'Сытно, но не всегда полезно.',hours:1,energy:-1,hunger:46,happiness:6,health:-1,cost:320},
-  {id:'cafe',cat:'food',icon:'🍲',name:'Поесть в кафе',desc:'Нормальная еда и хороший отдых.',hours:1,energy:4,hunger:65,happiness:10,health:3,cost:950,req:{career:2}},
-  {id:'restaurant',cat:'food',icon:'🍽️',name:'Ужин в ресторане',desc:'Дорогой способ поднять настроение.',hours:2,energy:6,hunger:90,happiness:22,health:4,cost:5200,req:{career:4}},
+  {id:'find_food',cat:'food',icon:'🗑️',name:'Поискать еду у магазина',desc:'Проверить контейнеры возле магазина и найти что-нибудь съедобное.',hours:2,hunger:18,happiness:-1,health:-2,min:0,max:0},
+  {id:'bread',cat:'food',icon:'🍞',name:'Купить батон',desc:'Простой и дешёвый перекус.',hours:1,hunger:28,happiness:1,cost:80},
+  {id:'shawarma',cat:'food',icon:'🌯',name:'Купить шаурму',desc:'Сытно, но не всегда полезно.',hours:1,hunger:46,happiness:6,health:-1,cost:320},
+  {id:'cafe',cat:'food',icon:'🍲',name:'Поесть в кафе',desc:'Нормальная еда и хороший отдых.',hours:1,hunger:65,happiness:10,health:3,cost:950,req:{career:2}},
+  {id:'restaurant',cat:'food',icon:'🍽️',name:'Ужин в ресторане',desc:'Дорогой способ поднять настроение.',hours:2,hunger:90,happiness:22,health:4,cost:5200,req:{career:4}},
 
-  {id:'bottles',cat:'work',icon:'♻️',name:'Собирать бутылки',desc:'Собирать и сдавать найденную тару.',hours:3,energy:-16,hunger:-8,happiness:-3,health:-2,min:180,max:450},
-  {id:'beg',cat:'work',icon:'🪙',name:'Просить милостыню',desc:'Попросить помощи у прохожих возле метро. Доход зависит от удачи.',hours:3,energy:-10,hunger:-6,happiness:-6,reputation:-1,min:120,max:600},
-  {id:'loader',cat:'work',icon:'📦',name:'Подработка грузчиком',desc:'Тяжёлая работа, но платят сразу.',hours:4,energy:-28,hunger:-12,health:-5,min:1000,max:1800,req:{health:42}},
-  {id:'courier',cat:'work',icon:'🚲',name:'Смена курьером',desc:'Первая стабильная подработка.',hours:6,energy:-31,hunger:-16,happiness:-2,health:-2,min:2800,max:4200,req:{career:1,health:45}},
-  {id:'seller',cat:'work',icon:'🛒',name:'Смена продавцом',desc:'Постоянная работа и опыт общения.',hours:8,energy:-34,hunger:-19,happiness:-2,reputation:1,min:5000,max:7500,req:{career:2,education:10}},
-  {id:'office',cat:'work',icon:'💻',name:'Работа в офисе',desc:'Хорошая зарплата для образованного человека.',hours:8,energy:-28,hunger:-17,happiness:1,reputation:2,connections:1,min:14000,max:22000,req:{career:3,education:35}},
-  {id:'director',cat:'work',icon:'👔',name:'Работа директором',desc:'Большой доход и влияние.',hours:8,energy:-27,hunger:-15,happiness:3,reputation:3,connections:2,influence:1,min:50000,max:80000,req:{career:5,education:60,reputation:35}},
-  {id:'usd_freelance',cat:'work',icon:'🌐',name:'Заказ для иностранца',desc:'Удалённая подработка с оплатой в долларах.',hours:6,energy:-25,hunger:-13,happiness:2,reputation:1,min:60,max:100,currency:'USD',req:{career:3,education:35}},
-  {id:'usd_contract',cat:'work',icon:'💼',name:'Зарубежный контракт',desc:'Серьёзная работа на иностранную компанию.',hours:8,energy:-30,hunger:-16,happiness:4,reputation:2,connections:2,min:350,max:600,currency:'USD',req:{career:5,education:65,reputation:30}},
+  {id:'bottles',cat:'work',icon:'♻️',name:'Собирать бутылки',desc:'Собирать и сдавать найденную тару.',hours:3,hunger:-8,happiness:-3,health:-2,min:180,max:450},
+  {id:'beg',cat:'work',icon:'🪙',name:'Просить милостыню',desc:'Попросить помощи у прохожих возле метро. Доход зависит от удачи.',hours:3,hunger:-6,happiness:-6,reputation:-1,min:120,max:600},
+  {id:'loader',cat:'work',icon:'📦',name:'Подработка грузчиком',desc:'Тяжёлая работа, но платят сразу.',hours:4,hunger:-12,health:-5,min:1000,max:1800,req:{health:42}},
+  {id:'courier',cat:'work',icon:'🚲',name:'Смена курьером',desc:'Первая стабильная подработка.',hours:6,hunger:-16,happiness:-2,health:-2,min:2800,max:4200,req:{career:1,health:45}},
+  {id:'seller',cat:'work',icon:'🛒',name:'Смена продавцом',desc:'Постоянная работа и опыт общения.',hours:8,hunger:-19,happiness:-2,reputation:1,min:5000,max:7500,req:{career:2,education:10}},
+  {id:'office',cat:'work',icon:'💻',name:'Работа в офисе',desc:'Хорошая зарплата для образованного человека.',hours:8,hunger:-17,happiness:1,reputation:2,connections:1,min:14000,max:22000,req:{career:3,education:35}},
+  {id:'director',cat:'work',icon:'👔',name:'Работа директором',desc:'Большой доход и влияние.',hours:8,hunger:-15,happiness:3,reputation:3,connections:2,influence:1,min:50000,max:80000,req:{career:5,education:60,reputation:35}},
+  {id:'usd_freelance',cat:'work',icon:'🌐',name:'Заказ для иностранца',desc:'Удалённая подработка с оплатой в долларах.',hours:6,hunger:-13,happiness:2,reputation:1,min:60,max:100,currency:'USD',req:{career:3,education:35}},
+  {id:'usd_contract',cat:'work',icon:'💼',name:'Зарубежный контракт',desc:'Серьёзная работа на иностранную компанию.',hours:8,hunger:-16,happiness:4,reputation:2,connections:2,min:350,max:600,currency:'USD',req:{career:5,education:65,reputation:30}},
 
-  {id:'rest',cat:'health',icon:'🪑',name:'Отдохнуть на лавке',desc:'Немного восстановить силы на свежем воздухе.',hours:3,energy:35,hunger:-8,happiness:4},
-  {id:'sleep',cat:'health',icon:'😴',name:'Поспать',desc:'Главный способ восстановить силы и пропустить часть дня.',hours:8,energy:100,hunger:-18,health:5,happiness:3},
-  {id:'medicine',cat:'health',icon:'💊',name:'Купить лекарства',desc:'Небольшое восстановление здоровья.',hours:1,energy:-1,health:18,cost:650},
-  {id:'clinic',cat:'health',icon:'🏥',name:'Посетить клинику',desc:'Полноценное лечение.',hours:4,energy:-6,health:45,happiness:-2,cost:4200,req:{career:1}},
-  {id:'sport',cat:'health',icon:'🏃',name:'Тренировка',desc:'Укрепляет здоровье, но требует сил.',hours:2,energy:-18,hunger:-8,health:8,happiness:6,cost:250,req:{health:35}},
+  {id:'rest',cat:'health',icon:'🪑',name:'Отдохнуть на лавке',desc:'Немного восстановить силы на свежем воздухе.',hours:3,hunger:-8,happiness:4},
+  {id:'sleep',cat:'health',icon:'😴',name:'Поспать',desc:'Главный способ восстановить силы и пропустить часть дня.',hours:8,hunger:-18,health:5,happiness:3},
+  {id:'medicine',cat:'health',icon:'💊',name:'Купить лекарства',desc:'Небольшое восстановление здоровья.',hours:1,health:18,cost:650},
+  {id:'clinic',cat:'health',icon:'🏥',name:'Посетить клинику',desc:'Полноценное лечение.',hours:4,health:45,happiness:-2,cost:4200,req:{career:1}},
+  {id:'sport',cat:'health',icon:'🏃',name:'Тренировка',desc:'Укрепляет здоровье, но требует сил.',hours:2,hunger:-8,health:8,happiness:6,cost:250,req:{health:35}},
 
-  {id:'park',cat:'fun',icon:'🌳',name:'Погулять в парке',desc:'Бесплатно прогуляться и немного развеяться.',hours:2,energy:-4,hunger:-5,happiness:11},
-  {id:'cinema',cat:'fun',icon:'🎬',name:'Сходить в кино',desc:'Отвлечься от проблем.',hours:3,energy:-3,hunger:-5,happiness:20,cost:650},
-  {id:'club',cat:'fun',icon:'🎉',name:'Сходить в клуб',desc:'Много эмоций и новых знакомств.',hours:5,energy:-18,hunger:-10,happiness:28,connections:2,cost:4800,req:{career:3}},
-  {id:'travel',cat:'fun',icon:'✈️',name:'Отправиться в путешествие',desc:'Сильный бонус к счастью и репутации.',hours:12,energy:-15,hunger:-18,happiness:45,reputation:4,cost:35000,req:{career:5}},
+  {id:'park',cat:'fun',icon:'🌳',name:'Погулять в парке',desc:'Бесплатно прогуляться и немного развеяться.',hours:2,hunger:-5,happiness:11},
+  {id:'cinema',cat:'fun',icon:'🎬',name:'Сходить в кино',desc:'Отвлечься от проблем.',hours:3,hunger:-5,happiness:20,cost:650},
+  {id:'club',cat:'fun',icon:'🎉',name:'Сходить в клуб',desc:'Много эмоций и новых знакомств.',hours:5,hunger:-10,happiness:28,connections:2,cost:4800,req:{career:3}},
+  {id:'travel',cat:'fun',icon:'✈️',name:'Отправиться в путешествие',desc:'Сильный бонус к счастью и репутации.',hours:12,hunger:-18,happiness:45,reputation:4,cost:35000,req:{career:5}},
 
-  {id:'library',cat:'education',icon:'📚',name:'Заниматься в библиотеке',desc:'Читать книги и постепенно повышать образование.',hours:4,energy:-14,hunger:-8,happiness:-2,education:5},
-  {id:'course',cat:'education',icon:'🧑‍💻',name:'Пройти онлайн-курс',desc:'Быстрый рост квалификации.',hours:5,energy:-18,hunger:-10,education:9,cost:1500},
-  {id:'college',cat:'education',icon:'🏫',name:'Учиться в колледже',desc:'Серьёзный шаг к карьере.',hours:8,energy:-24,hunger:-14,education:13,reputation:1,cost:6000,req:{education:12}},
-  {id:'university',cat:'education',icon:'🎓',name:'Учиться в университете',desc:'Открывает высшие должности.',hours:8,energy:-27,hunger:-14,education:16,reputation:2,connections:1,cost:18000,req:{career:3,education:32}},
+  {id:'library',cat:'education',icon:'📚',name:'Заниматься в библиотеке',desc:'Читать книги и постепенно повышать образование.',hours:4,hunger:-8,happiness:-2,education:5},
+  {id:'course',cat:'education',icon:'🧑‍💻',name:'Пройти онлайн-курс',desc:'Быстрый рост квалификации.',hours:5,hunger:-10,education:9,cost:1500},
+  {id:'college',cat:'education',icon:'🏫',name:'Учиться в колледже',desc:'Серьёзный шаг к карьере.',hours:8,hunger:-14,education:13,reputation:1,cost:6000,req:{education:12}},
+  {id:'university',cat:'education',icon:'🎓',name:'Учиться в университете',desc:'Открывает высшие должности.',hours:8,hunger:-14,education:16,reputation:2,connections:1,cost:18000,req:{career:3,education:32}},
 
-  {id:'trash_blog',cat:'media',icon:'📱',name:'Вести уличный блог',desc:'Рассказывать в сети о жизни и пути наверх.',hours:3,energy:-10,hunger:-6,happiness:3,reputation:-1,popularity:3},
-  {id:'metro_show',cat:'media',icon:'🎭',name:'Уличное выступление',desc:'Выступить у метро и привлечь внимание прохожих.',hours:4,energy:-16,hunger:-8,happiness:8,reputation:-2,popularity:5},
-  {id:'district_channel',cat:'media',icon:'📢',name:'Завести районный канал',desc:'Постить новости, жалобы и истории с улиц.',hours:4,energy:-14,hunger:-7,popularity:7,connections:1,cost:500,req:{education:8}},
-  {id:'local_interview',cat:'media',icon:'🎙️',name:'Дать интервью паблику',desc:'Рассказать местным, как вы поднялись со дна.',hours:4,energy:-15,hunger:-7,popularity:10,reputation:2,connections:1,cost:2000,req:{career:2,reputation:8}},
-  {id:'blogger_ads',cat:'media',icon:'🚀',name:'Купить рекламу у блогеров',desc:'Быстро увеличить охваты и узнаваемость.',hours:2,energy:-5,popularity:15,reputation:1,cost:12000,req:{career:4}},
+  {id:'trash_blog',cat:'media',icon:'📱',name:'Вести уличный блог',desc:'Рассказывать в сети о жизни и пути наверх.',hours:3,hunger:-6,happiness:3,reputation:-1,popularity:3},
+  {id:'metro_show',cat:'media',icon:'🎭',name:'Уличное выступление',desc:'Выступить у метро и привлечь внимание прохожих.',hours:4,hunger:-8,happiness:8,reputation:-2,popularity:5},
+  {id:'district_channel',cat:'media',icon:'📢',name:'Завести районный канал',desc:'Постить новости, жалобы и истории с улиц.',hours:4,hunger:-7,popularity:7,connections:1,cost:500,req:{education:8}},
+  {id:'local_interview',cat:'media',icon:'🎙️',name:'Дать интервью паблику',desc:'Рассказать местным, как вы поднялись со дна.',hours:4,hunger:-7,popularity:10,reputation:2,connections:1,cost:2000,req:{career:2,reputation:8}},
+  {id:'blogger_ads',cat:'media',icon:'🚀',name:'Купить рекламу у блогеров',desc:'Быстро увеличить охваты и узнаваемость.',hours:2,popularity:15,reputation:1,cost:12000,req:{career:4}},
 
-  {id:'volunteer',cat:'media',icon:'🙋',name:'Стать волонтёром',desc:'Помогать людям ради репутации и новых знакомых.',hours:5,energy:-18,hunger:-9,happiness:8,reputation:5,popularity:2},
-  {id:'networking',cat:'politics',icon:'🤝',name:'Деловая встреча',desc:'Создаёт полезные связи.',hours:3,energy:-10,hunger:-5,connections:5,reputation:2,cost:3000,req:{career:3}},
-  {id:'charity',cat:'media',icon:'💛',name:'Благотворительность',desc:'Повышает известность и доверие.',hours:2,energy:-4,happiness:8,reputation:7,popularity:6,cost:15000,req:{career:4}},
-  {id:'speech',cat:'politics',icon:'🎤',name:'Публичное выступление',desc:'Развивает популярность.',hours:4,energy:-17,hunger:-7,popularity:8,reputation:3,connections:2,cost:5000,req:{career:5,reputation:30}},
+  {id:'volunteer',cat:'media',icon:'🙋',name:'Стать волонтёром',desc:'Помогать людям ради репутации и новых знакомых.',hours:5,hunger:-9,happiness:8,reputation:5,popularity:2},
+  {id:'networking',cat:'politics',icon:'🤝',name:'Деловая встреча',desc:'Создаёт полезные связи.',hours:3,hunger:-5,connections:5,reputation:2,cost:3000,req:{career:3}},
+  {id:'charity',cat:'media',icon:'💛',name:'Благотворительность',desc:'Повышает известность и доверие.',hours:2,happiness:8,reputation:7,popularity:6,cost:15000,req:{career:4}},
+  {id:'speech',cat:'politics',icon:'🎤',name:'Публичное выступление',desc:'Развивает популярность.',hours:4,hunger:-7,popularity:8,reputation:3,connections:2,cost:5000,req:{career:5,reputation:30}},
 
-  {id:'party',cat:'politics',icon:'🏛️',name:'Вступить в партию',desc:'Первый серьёзный политический шаг.',hours:5,energy:-17,reputation:4,connections:6,influence:4,cost:12000,req:{career:5,reputation:25}},
-  {id:'campaign',cat:'politics',icon:'📣',name:'Провести агитацию',desc:'Повышает популярность и влияние.',hours:6,energy:-25,hunger:-10,popularity:9,influence:4,cost:25000,req:{career:6}},
-  {id:'debate',cat:'politics',icon:'🗣️',name:'Участвовать в дебатах',desc:'Результат зависит от образования и репутации.',hours:5,energy:-23,hunger:-8,custom:'debate',cost:40000,req:{career:7,education:65}},
-  {id:'election',cat:'politics',icon:'🗳️',name:'Начать президентские выборы',desc:'Трёхэтапная кампания с риском проиграть и попасть под санкции.',hours:12,energy:-40,custom:'election',cost:500000,req:{career:8,popularity:70,reputation:60,influence:55,connections:50}}
+  {id:'party',cat:'politics',icon:'🏛️',name:'Вступить в партию',desc:'Первый серьёзный политический шаг.',hours:5,reputation:4,connections:6,influence:4,cost:12000,req:{career:5,reputation:25}},
+  {id:'campaign',cat:'politics',icon:'📣',name:'Провести агитацию',desc:'Повышает популярность и влияние.',hours:6,hunger:-10,popularity:9,influence:4,cost:25000,req:{career:6}},
+  {id:'debate',cat:'politics',icon:'🗣️',name:'Участвовать в дебатах',desc:'Результат зависит от образования и репутации.',hours:5,hunger:-8,custom:'debate',cost:40000,req:{career:7,education:65}},
+  {id:'election',cat:'politics',icon:'🗳️',name:'Начать президентские выборы',desc:'Трёхэтапная кампания с риском проиграть и попасть под санкции.',hours:12,custom:'election',cost:500000,req:{career:8,popularity:70,reputation:60,influence:55,connections:50}}
 ];
 
 const careers = [
@@ -96,12 +97,12 @@ const careers = [
 ];
 
 const homes = [
-  {id:'street',icon:'📦',name:'Место под мостом',price:0,daily:0,energy:0,health:-4,desc:'Бесплатно, но некомфортно и вредно для здоровья.'},
-  {id:'shelter',icon:'🛏️',name:'Ночлежка',price:1500,daily:150,energy:7,health:1,desc:'Тесно и шумно, зато есть крыша над головой.'},
-  {id:'room',icon:'🚪',name:'Комната в общежитии',price:18000,daily:750,energy:13,health:3,desc:'Своя дверь, кровать и шанс нормально выспаться.'},
-  {id:'flat',icon:'🏢',name:'Квартира',price:120000,daily:2200,energy:20,health:5,desc:'Собственная квартира с базовым комфортом.'},
-  {id:'house',icon:'🏡',name:'Загородный дом',price:650000,daily:6000,energy:28,health:7,desc:'Просторный дом для обеспеченного человека.'},
-  {id:'residence',icon:'🏰',name:'Президентская резиденция',price:3000000,daily:18000,energy:35,health:10,desc:'Максимальный комфорт будущего президента.'}
+  {id:'street',icon:'📦',name:'Место под мостом',price:0,daily:0,health:-4,desc:'Бесплатно, но некомфортно и вредно для здоровья.'},
+  {id:'shelter',icon:'🛏️',name:'Ночлежка',price:1500,daily:150,health:1,desc:'Тесно и шумно, зато есть крыша над головой.'},
+  {id:'room',icon:'🚪',name:'Комната в общежитии',price:18000,daily:750,health:3,desc:'Своя дверь, кровать и шанс нормально выспаться.'},
+  {id:'flat',icon:'🏢',name:'Квартира',price:120000,daily:2200,health:5,desc:'Собственная квартира с базовым комфортом.'},
+  {id:'house',icon:'🏡',name:'Загородный дом',price:650000,daily:6000,health:7,desc:'Просторный дом для обеспеченного человека.'},
+  {id:'residence',icon:'🏰',name:'Президентская резиденция',price:3000000,daily:18000,health:10,desc:'Максимальный комфорт будущего президента.'}
 ];
 
 const assets = [
@@ -118,7 +119,7 @@ const events = [
       ()=>{s.rubles=Math.max(0,s.rubles-2500);s.reputation-=8;return 'Вас заметила камера. Пришлось вернуть деньги и заплатить 2 500 ₽.'})},
     {text:'Найти владельца',effect:s=>chance(.68,
       ()=>{s.reputation+=7;s.connections+=3;s.rubles+=1500;return 'Владелец дал 1 500 ₽ награды и полезный контакт.'},
-      ()=>{s.energy-=8;s.happiness-=4;return 'Вы потратили полдня, но владельца так и не нашли.'})}
+      ()=>{s.happiness-=4;return 'Вы потратили полдня, но владельца так и не нашли.'})}
   ]},
   {id:'illness',icon:'🤒',title:'Сильная простуда',text:'Температура растёт, а завтра важный день.',choices:[
     {text:'Купить лекарства за 700 ₽',can:s=>s.rubles>=700,effect:s=>chance(.82,
@@ -126,7 +127,7 @@ const events = [
       ()=>{s.rubles-=700;s.health-=5;return 'Лекарство не подошло, здоровье ухудшилось.'})},
     {text:'Перетерпеть',effect:s=>chance(.28,
       ()=>{s.health+=3;s.happiness+=4;return 'Организм справился сам. Вы даже почувствовали прилив сил.'},
-      ()=>{s.health-=16;s.energy-=12;return 'Болезнь сильно вас подкосила.'})}
+      ()=>{s.health-=16;return 'Болезнь сильно вас подкосила.'})}
   ]},
   {id:'viral_video',icon:'📸',title:'Ролик разлетается по сети',text:'Видео с вами внезапно набирает сотни тысяч просмотров.',choices:[
     {text:'Подхватить хайп',effect:s=>chance(.70,
@@ -138,7 +139,7 @@ const events = [
   ]},
   {id:'police',icon:'🚓',title:'Проверка документов',text:'Полиция требует документы и задаёт неудобные вопросы.',choices:[
     {text:'Спокойно сотрудничать',effect:s=>chance(.80,
-      ()=>{s.reputation+=2;s.energy-=3;return 'Проверка закончилась без проблем.'},
+      ()=>{s.reputation+=2;return 'Проверка закончилась без проблем.'},
       ()=>{s.rubles=Math.max(0,s.rubles-1200);s.happiness-=6;return 'Нашёлся старый штраф: списано 1 200 ₽.'})},
     {text:'Спорить',effect:s=>chance(.32,
       ()=>{s.popularity+=5;s.reputation+=1;return 'Прохожие сняли спор, и публика встала на вашу сторону.'},
@@ -147,7 +148,7 @@ const events = [
   {id:'dog',icon:'🐕',title:'Потерявшаяся собака',text:'На ошейнике дорогой адрес и номер телефона.',choices:[
     {text:'Отвести хозяину',effect:s=>chance(.78,
       ()=>{s.rubles+=4000;s.reputation+=6;s.connections+=2;return 'Хозяин дал 4 000 ₽ и пообещал помочь.'},
-      ()=>{s.energy-=12;s.health-=3;return 'Собака укусила вас по дороге.'})},
+      ()=>{s.health-=3;return 'Собака укусила вас по дороге.'})},
     {text:'Оставить себе',effect:s=>chance(.45,
       ()=>{s.happiness+=15;s.reputation+=2;return 'Пёс стал верным другом и поднял настроение.'},
       ()=>{s.rubles=Math.max(0,s.rubles-2500);s.happiness-=6;return 'Пришлось оплатить лечение и вернуть собаку владельцу.'})}
@@ -171,7 +172,7 @@ const events = [
   {id:'foreign_client',icon:'🌍',title:'Клиент из-за границы',text:'Вам предлагают срочную работу с оплатой в долларах.',when:s=>s.education>=25,choices:[
     {text:'Взяться за заказ',effect:s=>chance(Math.min(.85,.45+s.education/200),
       ()=>{const pay=random(45,110);s.dollars+=pay;s.totalDollarEarned+=pay;s.reputation+=2;return `Заказ принят: заработано $${pay}.`},
-      ()=>{s.reputation-=4;s.energy-=15;return 'Вы сорвали срок и получили плохой отзыв.'})},
+      ()=>{s.reputation-=4;return 'Вы сорвали срок и получили плохой отзыв.'})},
     {text:'Передать знакомому',effect:s=>chance(.65,
       ()=>{s.connections+=5;s.dollars+=15;s.totalDollarEarned+=15;return 'Знакомый поделился $15 и теперь должен вам услугу.'},
       ()=>{s.connections-=3;s.reputation-=2;return 'Знакомый провалил заказ и обвинил вас.'})}
@@ -242,16 +243,18 @@ function freshState(){
 function loadState(){
   try {
     const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-    return {
+    const merged={
       ...freshState(),
       ...saved,
       assets:{...(saved.assets||{})},
       criticalHours:{...defaultState.criticalHours,...(saved.criticalHours||{})},
       criticalActive:{...defaultState.criticalActive,...(saved.criticalActive||{})}
     };
+    delete merged.energy;
+    return merged;
   } catch { return freshState(); }
 }
-function saveState(){ localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }
+function saveState(){ delete state.energy; localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }
 function haptic(type='light'){ tg?.HapticFeedback?.impactOccurred?.(type); }
 function showToast(text){
   const el=document.getElementById('toast'); el.textContent=text; el.classList.add('show');
@@ -281,7 +284,7 @@ function syncCriticalStates(){
 }
 function criticalWarningText(keys){
   const names=keys.map(key=>fatalStats[key].name).join(', ');
-  return `Показатель «${names}» достиг нуля. Если он останется на нуле в течение 24 игровых часов, персонаж умрёт.`;
+  return `Показатель «${names}» достиг нуля. Если он непрерывно останется на нуле следующие ${CRITICAL_LIMIT_HOURS} игровых часа, персонаж умрёт.`;
 }
 function showCriticalWarning(keys){
   if(!keys.length||state.gameOver) return;
@@ -291,8 +294,8 @@ function advanceCriticalTimers(hours){
   if(state.gameOver||hours<=0) return;
   for(const key of Object.keys(fatalStats)){
     if(state.criticalActive[key]&&state[key]<=0){
-      state.criticalHours[key]=Math.min(24,(Number(state.criticalHours[key])||0)+hours);
-      if(state.criticalHours[key]>=24){
+      state.criticalHours[key]=Math.min(CRITICAL_LIMIT_HOURS,(Number(state.criticalHours[key])||0)+hours);
+      if(state.criticalHours[key]>=CRITICAL_LIMIT_HOURS){
         endGame(key);
         return;
       }
@@ -388,7 +391,6 @@ function exchangeCurrency(direction){
     state.rubles+=revenue;
     showToast(`Продано $${fmt(amount)} за ${fmt(revenue)} ₽`);
   }
-  state.energy=clamp(state.energy-1);
   state.actionsDone++;
   advanceTime(1);
   if(state.gameOver) return;
@@ -425,13 +427,12 @@ function performAction(id){
   const a=actions.find(x=>x.id===id); if(!a) return;
   const availability=actionAvailability(a);
   if(availability.disabled){showToast(availability.reason);return;}
-  if(state.energy<Math.abs(Math.min(0,a.energy||0))){showToast('Недостаточно энергии');return;}
   if(a.custom){ performCustom(a); return; }
 
   if(a.cost) spend(a.cost);
   const reward=a.max?random(a.min||0,a.max):0;
   if(reward){ if(a.currency==='USD') earnDollars(reward); else earn(reward); }
-  ['energy','hunger','health','happiness','education','reputation','connections','popularity','influence'].forEach(k=>addValue(k,a[k]||0));
+  ['hunger','health','happiness','education','reputation','connections','popularity','influence'].forEach(k=>addValue(k,a[k]||0));
   advanceTime(a.hours||1);
   if(state.gameOver) return;
   state.actionsDone++;
@@ -443,7 +444,7 @@ function performAction(id){
 function performCustom(a){
   if(a.cost && state.rubles<a.cost){showToast('Недостаточно рублей');return;}
   if(a.id==='debate'){
-    spend(a.cost); addValue('energy',a.energy||0);addValue('hunger',a.hunger||0); const score=state.education+state.reputation+random(-25,25);
+    spend(a.cost); addValue('hunger',a.hunger||0); const score=state.education+state.reputation+random(-25,25);
     if(score>105){state.popularity=clamp(state.popularity+15);state.influence=clamp(state.influence+8);showToast('Вы блестяще выиграли дебаты');}
     else{state.popularity=clamp(state.popularity-4);state.happiness=clamp(state.happiness-8);showToast('Дебаты прошли неудачно');}
     advanceTime(a.hours);
@@ -451,7 +452,6 @@ function performCustom(a){
   if(a.id==='election'){
     if(state.day<state.electionBanUntil){showToast(`Повторные выборы доступны с ${state.electionBanUntil}-го дня`);return;}
     spend(a.cost);
-    state.energy=clamp(state.energy+(a.energy||0));
     suppressRandomEvent=true;
     advanceTime(a.hours);
     suppressRandomEvent=false;
@@ -573,7 +573,6 @@ function nextDay(){
   state.happiness=clamp(state.happiness-3);
   const home=homes.find(x=>x.id===state.homeId)||homes[0];
   state.health=clamp(state.health+home.health);
-  state.energy=clamp(state.energy+home.energy);
   if(home.daily){
     if(state.rubles>=home.daily) spend(home.daily);
     else {state.homeId='street';showToast('Не хватило денег на жильё — вы снова живёте под мостом');}
@@ -627,11 +626,11 @@ function triggerRandomEvent(){
   })));
 }
 function normalize(){
-  ['health','hunger','happiness','energy','education','reputation','connections','popularity','influence'].forEach(k=>state[k]=clamp(state[k]));
+  ['health','hunger','happiness','education','reputation','connections','popularity','influence'].forEach(k=>state[k]=clamp(state[k]));
   state.rubles=Math.max(0,state.rubles);state.dollars=Math.max(0,state.dollars);
   state.criticalHours={...defaultState.criticalHours,...(state.criticalHours||{})};
   state.criticalActive={...defaultState.criticalActive,...(state.criticalActive||{})};
-  Object.keys(fatalStats).forEach(k=>state.criticalHours[k]=Math.max(0,Math.min(24,Number(state.criticalHours[k])||0)));
+  Object.keys(fatalStats).forEach(k=>state.criticalHours[k]=Math.max(0,Math.min(CRITICAL_LIMIT_HOURS,Number(state.criticalHours[k])||0)));
   state.exchangeRate=clampRate(Number(state.exchangeRate)||92);state.previousExchangeRate=clampRate(Number(state.previousExchangeRate)||state.exchangeRate);state.exchangeRateBias=Math.max(-2,Math.min(2,Number(state.exchangeRateBias)||0));recalcCareer();
 }
 
@@ -686,7 +685,7 @@ function renderHome(){
   if(rateEl){rateEl.textContent=`База ${state.exchangeRate.toFixed(2)} ₽ ${trend==='up'?'▲':trend==='down'?'▼':'•'}`;rateEl.className=`rate-line ${trend}`;}
   const homeRate=document.getElementById('homeExchangeRate');
   if(homeRate){homeRate.textContent=`Купить ${buyUsdRate().toFixed(2)} ₽ · продать ${sellUsdRate().toFixed(2)} ₽ ${trend==='up'?'▲':trend==='down'?'▼':'•'}`;homeRate.className=`exchange-home-rate ${trend}`;}
-  const stats=[['❤️','Здоровье','health'],['🍗','Сытость','hunger'],['😊','Счастье','happiness'],['⚡','Энергия','energy']];
+  const stats=[['❤️','Здоровье','health'],['🍗','Сытость','hunger'],['😊','Счастье','happiness']];
   document.getElementById('statsList').innerHTML=stats.map(([i,n,k])=>`<div class="stat-row"><div class="stat-icon">${i}</div><div><div class="stat-name">${n}</div><div class="progress"><div class="progress-fill ${state[k]<25?'bad':state[k]>75?'good':''}" style="width:${state[k]}%"></div></div></div><div class="stat-value">${Math.round(state[k])}</div></div>`).join('');
   const quick=['bread','bottles','rest'].map(id=>actions.find(a=>a.id===id));
   document.getElementById('quickActions').innerHTML=quick.map(a=>`<button class="quick-action" data-action="${a.id}"><span>${a.icon}</span><strong>${a.name}</strong><small>${a.hours} ч.</small></button>`).join('');
@@ -716,7 +715,7 @@ function renderActions(){
     const availability=actionAvailability(a);const locked=!requirementMet(a.req);
     const effects=[];
     if(a.hours)effects.push(`🕒 ${a.hours} ч.`);
-    const labels={energy:'⚡',hunger:'🍗',health:'❤️',happiness:'😊',education:'🎓',reputation:'⭐',connections:'🤝',popularity:'📣',influence:'🏛️'};
+    const labels={hunger:'🍗',health:'❤️',happiness:'😊',education:'🎓',reputation:'⭐',connections:'🤝',popularity:'📣',influence:'🏛️'};
     Object.keys(labels).forEach(k=>{if(a[k])effects.push(`${labels[k]} ${a[k]>0?'+':''}${a[k]}`)});
     const subtitle=availability.disabled?availability.reason:a.desc;
     return `<article class="action-card ${locked?'locked':''}"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${a.icon}</div><div><div class="card-title">${a.name}</div><div class="card-subtitle">${subtitle}</div></div></div><div class="reward ${a.max?'positive':a.cost?'negative':''}">${actionMoney(a)}</div></div><div class="effects">${effects.map(x=>`<span class="effect">${x}</span>`).join('')}</div><button class="action-button" data-action="${a.id}" ${availability.disabled?'disabled':''}>${availability.disabled?'Недоступно':'Выполнить'}</button></article>`;
@@ -822,7 +821,7 @@ document.addEventListener('click',e=>{
 });
 
 document.getElementById('modalClose').onclick=closeModal;
-document.getElementById('helpButton').onclick=()=>openModal('💡','Как играть','Начните бомжом, выживите и поднимитесь по карьерной лестнице. Если здоровье, сытость или счастье останутся на нуле 24 игровых часа, персонаж умрёт. Курс доллара меняется каждый день: доллары можно заработать на зарубежных заказах, купить или продать через кнопку «Обмен валют» на главной странице. Случайные события всегда дают два рискованных решения. На уровне кандидата откроется президентская кампания из трёх этапов.',[]);
+document.getElementById('helpButton').onclick=()=>openModal('💡','Как играть','Начните бомжом, выживите и поднимитесь по карьерной лестнице. Энергии в игре нет: действия ограничены игровым временем. Если здоровье, сытость или счастье непрерывно останутся на нуле 24 игровых часа, персонаж умрёт. Курс доллара меняется каждый день: доллары можно заработать на зарубежных заказах, купить или продать через кнопку «Обмен валют» на главной странице. Случайные события всегда дают два рискованных решения. На уровне кандидата откроется президентская кампания из трёх этапов.',[]);
 document.getElementById('resetButton').onclick=()=>openModal('⚠️','Начать заново?','Весь прогресс будет удалён.',[
   {text:'Удалить прогресс',onClick:restartGame}
 ]);
