@@ -21,6 +21,9 @@ const defaultState = {
   day: 1, hour: 8, careerIndex: 0, homeId: 'street', assets: {},
   totalEarned: 0, totalDollarEarned: 0, totalSpent: 0, actionsDone: 0, daysSurvived: 1,
   president: false, electionLosses: 0, electionBanUntil: 0, lastEventId: null,
+  criticalHours: {health:0,hunger:0,happiness:0},
+  criticalActive: {health:false,hunger:false,happiness:false},
+  gameOver: false, deathReason: '', deathDay: 0,
   playerName: tg?.initDataUnsafe?.user?.first_name || 'Игрок'
 };
 
@@ -228,11 +231,24 @@ let selectedCategory = 'food';
 let toastTimer;
 let suppressRandomEvent = false;
 
-function freshState(){ return {...defaultState,assets:{}}; }
+function freshState(){
+  return {
+    ...defaultState,
+    assets:{},
+    criticalHours:{...defaultState.criticalHours},
+    criticalActive:{...defaultState.criticalActive}
+  };
+}
 function loadState(){
   try {
     const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-    return {...freshState(),...saved,assets:{...(saved.assets||{})}};
+    return {
+      ...freshState(),
+      ...saved,
+      assets:{...(saved.assets||{})},
+      criticalHours:{...defaultState.criticalHours,...(saved.criticalHours||{})},
+      criticalActive:{...defaultState.criticalActive,...(saved.criticalActive||{})}
+    };
   } catch { return freshState(); }
 }
 function saveState(){ localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }
@@ -240,6 +256,70 @@ function haptic(type='light'){ tg?.HapticFeedback?.impactOccurred?.(type); }
 function showToast(text){
   const el=document.getElementById('toast'); el.textContent=text; el.classList.add('show');
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2200);
+}
+const fatalStats = {
+  health:{name:'здоровье',reason:'критического состояния'},
+  hunger:{name:'сытость',reason:'голода'},
+  happiness:{name:'счастье',reason:'полной потери воли к жизни'}
+};
+function syncCriticalStates(){
+  if(state.gameOver) return [];
+  const newlyCritical=[];
+  for(const key of Object.keys(fatalStats)){
+    if(state[key]<=0){
+      if(!state.criticalActive[key]){
+        state.criticalActive[key]=true;
+        state.criticalHours[key]=0;
+        newlyCritical.push(key);
+      }
+    }else{
+      state.criticalActive[key]=false;
+      state.criticalHours[key]=0;
+    }
+  }
+  return newlyCritical;
+}
+function criticalWarningText(keys){
+  const names=keys.map(key=>fatalStats[key].name).join(', ');
+  return `Показатель «${names}» достиг нуля. Если он останется на нуле в течение 24 игровых часов, персонаж умрёт.`;
+}
+function showCriticalWarning(keys){
+  if(!keys.length||state.gameOver) return;
+  openModal('⚠️','Смертельная опасность',criticalWarningText(keys),[]);
+}
+function advanceCriticalTimers(hours){
+  if(state.gameOver||hours<=0) return;
+  for(const key of Object.keys(fatalStats)){
+    if(state.criticalActive[key]&&state[key]<=0){
+      state.criticalHours[key]=Math.min(24,(Number(state.criticalHours[key])||0)+hours);
+      if(state.criticalHours[key]>=24){
+        endGame(key);
+        return;
+      }
+    }
+  }
+}
+function endGame(key){
+  if(state.gameOver) return;
+  state.gameOver=true;
+  state.deathReason=fatalStats[key]?.reason||'тяжёлого состояния';
+  state.deathDay=state.day;
+  saveState();
+  renderAll();
+  showDeathScreen();
+}
+function showDeathScreen(){
+  openModal('☠️','Игра окончена',`Персонаж умер из-за ${state.deathReason} на ${state.deathDay}-й день.`,[
+    {text:'Начать новую игру',onClick:restartGame}
+  ],{locked:true});
+}
+function restartGame(){
+  localStorage.removeItem(STORAGE_KEY);
+  state=freshState();
+  document.getElementById('modalClose').hidden=false;
+  closeModal(true);
+  renderAll();
+  showToast('Начата новая игра');
 }
 function requirementMet(req={}){
   if(req.health && state.health<req.health) return false;
@@ -293,6 +373,7 @@ function getExchangeAmount(){
   return Math.max(1,Math.min(100000,amount));
 }
 function exchangeCurrency(direction){
+  if(state.gameOver){showDeathScreen();return;}
   const amount=getExchangeAmount();
   if(direction==='buy'){
     const cost=buyUsdCost(amount);
@@ -310,6 +391,7 @@ function exchangeCurrency(direction){
   state.energy=clamp(state.energy-1);
   state.actionsDone++;
   advanceTime(1);
+  if(state.gameOver) return;
   saveState();
   renderAll();
   if(document.getElementById('modalTitle').textContent==='Обмен валют'){
@@ -339,6 +421,7 @@ function openExchangeMenu(){
 }
 
 function performAction(id){
+  if(state.gameOver){showDeathScreen();return;}
   const a=actions.find(x=>x.id===id); if(!a) return;
   const availability=actionAvailability(a);
   if(availability.disabled){showToast(availability.reason);return;}
@@ -350,6 +433,7 @@ function performAction(id){
   if(reward){ if(a.currency==='USD') earnDollars(reward); else earn(reward); }
   ['energy','hunger','health','happiness','education','reputation','connections','popularity','influence'].forEach(k=>addValue(k,a[k]||0));
   advanceTime(a.hours||1);
+  if(state.gameOver) return;
   state.actionsDone++;
   recalcCareer();
   saveState(); renderAll(); haptic();
@@ -366,8 +450,15 @@ function performCustom(a){
   }
   if(a.id==='election'){
     if(state.day<state.electionBanUntil){showToast(`Повторные выборы доступны с ${state.electionBanUntil}-го дня`);return;}
-    spend(a.cost);state.energy=clamp(state.energy+(a.energy||0));suppressRandomEvent=true;advanceTime(a.hours);suppressRandomEvent=false;startElectionCampaign();
+    spend(a.cost);
+    state.energy=clamp(state.energy+(a.energy||0));
+    suppressRandomEvent=true;
+    advanceTime(a.hours);
+    suppressRandomEvent=false;
+    if(state.gameOver) return;
+    startElectionCampaign();
   }
+  if(state.gameOver) return;
   state.actionsDone++; recalcCareer(); saveState(); renderAll(); haptic('medium');
 }
 
@@ -449,8 +540,32 @@ function applyElectionSanction(voteShare,campaign){
 }
 
 function advanceTime(hours){
-  state.hour+=hours;
-  while(state.hour>=24){state.hour-=24;nextDay();}
+  if(state.gameOver) return;
+  let remaining=Math.max(0,Number(hours)||0);
+  let crossedDay=false;
+  let newCritical=syncCriticalStates();
+  while(remaining>0&&!state.gameOver){
+    const untilMidnight=24-state.hour;
+    const step=Math.min(remaining,untilMidnight);
+    advanceCriticalTimers(step);
+    if(state.gameOver) return;
+    state.hour+=step;
+    remaining-=step;
+    if(state.hour>=24){
+      state.hour=0;
+      nextDay();
+      crossedDay=true;
+      newCritical=[...new Set([...newCritical,...syncCriticalStates()])];
+    }
+  }
+  newCritical=[...new Set([...newCritical,...syncCriticalStates()])];
+  if(state.gameOver) return;
+  if(newCritical.length){
+    newCritical.forEach(key=>state.criticalHours[key]=0);
+    showCriticalWarning(newCritical);
+  }else if(crossedDay&&!suppressRandomEvent&&Math.random()<.42){
+    setTimeout(()=>{if(!state.gameOver)triggerRandomEvent();},250);
+  }
 }
 function nextDay(){
   state.day++; state.daysSurvived=state.day;
@@ -474,12 +589,6 @@ function nextDay(){
   }
   if(passive) earn(passive);
   if(state.hunger<=0){state.health=clamp(state.health-18);state.happiness=clamp(state.happiness-10);}
-  if(state.health<=0){
-    const loss=Math.min(state.rubles,5000);state.rubles-=loss;state.health=45;state.energy=35;state.hunger=25;state.hour=10;
-    openModal('🏥','Экстренная помощь',`Вы потеряли сознание и попали в больницу. Потеряно ${fmt(loss)} ₽.`,[]);
-  } else if(!suppressRandomEvent&&Math.random()<.42){
-    setTimeout(()=>triggerRandomEvent(),250);
-  }
 }
 function recalcCareer(){
   let index=0;
@@ -488,12 +597,14 @@ function recalcCareer(){
 }
 
 function buyHome(id){
+  if(state.gameOver){showDeathScreen();return;}
   const home=homes.find(x=>x.id===id); if(!home||id==='street') return;
   if(state.rubles<home.price){showToast('Недостаточно рублей');return;}
   spend(home.price);state.homeId=id;state.reputation=clamp(state.reputation+Math.max(1,homes.indexOf(home)));
   saveState();renderAll();haptic('medium');showToast(`Новое жильё: ${home.name}`);
 }
 function buyAsset(id){
+  if(state.gameOver){showDeathScreen();return;}
   const item=assets.find(x=>x.id===id);if(!item)return;
   if(item.req&&!requirementMet(item.req)){showToast(`Нужно: ${requirementText(item.req)}`);return;}
   if(state.rubles<item.price){showToast('Недостаточно рублей');return;}
@@ -509,17 +620,22 @@ function triggerRandomEvent(){
   state.lastEventId=ev.id;
   openModal(ev.icon,ev.title,ev.text,ev.choices.map(c=>({
     text:c.text,disabled:c.can&&!c.can(state),onClick:()=>{
-      const result=c.effect(state);normalize();saveState();renderAll();openModal('🎲','Итог события',result,[]);
+      const result=c.effect(state);normalize();const newlyCritical=syncCriticalStates();saveState();renderAll();openModal('🎲','Итог события',newlyCritical.length?`${result}
+
+⚠️ ${criticalWarningText(newlyCritical)}`:result,[]);
     }
   })));
 }
 function normalize(){
   ['health','hunger','happiness','energy','education','reputation','connections','popularity','influence'].forEach(k=>state[k]=clamp(state[k]));
   state.rubles=Math.max(0,state.rubles);state.dollars=Math.max(0,state.dollars);
+  state.criticalHours={...defaultState.criticalHours,...(state.criticalHours||{})};
+  state.criticalActive={...defaultState.criticalActive,...(state.criticalActive||{})};
+  Object.keys(fatalStats).forEach(k=>state.criticalHours[k]=Math.max(0,Math.min(24,Number(state.criticalHours[k])||0)));
   state.exchangeRate=clampRate(Number(state.exchangeRate)||92);state.previousExchangeRate=clampRate(Number(state.previousExchangeRate)||state.exchangeRate);state.exchangeRateBias=Math.max(-2,Math.min(2,Number(state.exchangeRateBias)||0));recalcCareer();
 }
 
-function openModal(icon,title,text,choices=[]){
+function openModal(icon,title,text,choices=[],options={}){
   document.getElementById('modalIcon').textContent=icon;
   document.getElementById('modalTitle').textContent=title;
   document.getElementById('modalText').textContent=text;
@@ -527,9 +643,14 @@ function openModal(icon,title,text,choices=[]){
   choices.forEach(c=>{
     const b=document.createElement('button');b.className='modal-choice';b.textContent=c.text;b.disabled=!!c.disabled;b.onclick=c.onClick;box.appendChild(b);
   });
+  document.getElementById('modalClose').hidden=!!options.locked;
   document.getElementById('modalBackdrop').classList.remove('hidden');
 }
-function closeModal(){document.getElementById('modalBackdrop').classList.add('hidden');}
+function closeModal(force=false){
+  if(state.gameOver&&!force) return;
+  document.getElementById('modalBackdrop').classList.add('hidden');
+  document.getElementById('modalClose').hidden=false;
+}
 
 function renderAll(){normalize();renderHeader();renderHome();renderActions();renderCareer();renderAssets();renderProfile();saveState();}
 function renderHeader(){
@@ -701,10 +822,13 @@ document.addEventListener('click',e=>{
 });
 
 document.getElementById('modalClose').onclick=closeModal;
-document.getElementById('helpButton').onclick=()=>openModal('💡','Как играть','Начните бомжом, выживите и поднимитесь по карьерной лестнице. Курс доллара меняется каждый день: доллары можно заработать на зарубежных заказах, купить или продать через кнопку «Обмен валют» на главной странице. Случайные события всегда дают два рискованных решения. На уровне кандидата откроется президентская кампания из трёх этапов.',[]);
+document.getElementById('helpButton').onclick=()=>openModal('💡','Как играть','Начните бомжом, выживите и поднимитесь по карьерной лестнице. Если здоровье, сытость или счастье останутся на нуле 24 игровых часа, персонаж умрёт. Курс доллара меняется каждый день: доллары можно заработать на зарубежных заказах, купить или продать через кнопку «Обмен валют» на главной странице. Случайные события всегда дают два рискованных решения. На уровне кандидата откроется президентская кампания из трёх этапов.',[]);
 document.getElementById('resetButton').onclick=()=>openModal('⚠️','Начать заново?','Весь прогресс будет удалён.',[
-  {text:'Удалить прогресс',onClick:()=>{localStorage.removeItem(STORAGE_KEY);state=freshState();closeModal();renderAll();showToast('Игра начата заново')}}
+  {text:'Удалить прогресс',onClick:restartGame}
 ]);
 
 initCategoryScroller();
+const initialCritical=syncCriticalStates();
 renderAll();
+if(state.gameOver) showDeathScreen();
+else if(initialCritical.length) showCriticalWarning(initialCritical);
