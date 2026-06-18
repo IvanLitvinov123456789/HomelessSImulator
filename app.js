@@ -34,53 +34,1061 @@ const categories = [
 ];
 
 const actions = [
-  {id:'find_food',cat:'food',icon:'🗑️',name:'Поискать еду у магазина',desc:'Проверить контейнеры возле магазина и найти что-нибудь съедобное.',hours:2,hunger:18,happiness:-1,health:-2,min:0,max:0},
-  {id:'bread',cat:'food',icon:'🍞',name:'Купить батон',desc:'Простой и дешёвый перекус.',hours:1,hunger:28,happiness:1,cost:80},
-  {id:'shawarma',cat:'food',icon:'🌯',name:'Купить шаурму',desc:'Сытно, но не всегда полезно.',hours:1,hunger:46,happiness:6,health:-1,cost:320},
-  {id:'cafe',cat:'food',icon:'🍲',name:'Поесть в кафе',desc:'Нормальная еда и хороший отдых.',hours:1,hunger:65,happiness:10,health:3,cost:950,req:{career:2}},
-  {id:'restaurant',cat:'food',icon:'🍽️',name:'Ужин в ресторане',desc:'Дорогой способ поднять настроение.',hours:2,hunger:90,happiness:22,health:4,cost:5200,req:{career:4}},
-
-  {id:'bottles',cat:'work',icon:'♻️',name:'Собирать бутылки',desc:'Собирать и сдавать найденную тару.',hours:3,hunger:-8,happiness:-3,health:-2,min:180,max:450},
-  {id:'beg',cat:'work',icon:'🪙',name:'Просить милостыню',desc:'Попросить помощи у прохожих возле метро. Доход зависит от удачи.',hours:3,hunger:-6,happiness:-6,reputation:-1,min:120,max:600},
-  {id:'loader',cat:'work',icon:'📦',name:'Подработка грузчиком',desc:'Тяжёлая работа, но платят сразу.',hours:4,hunger:-12,health:-5,min:1000,max:1800,req:{health:42}},
-  {id:'courier',cat:'work',icon:'🚲',name:'Смена курьером',desc:'Первая стабильная подработка.',hours:6,hunger:-16,happiness:-2,health:-2,min:2800,max:4200,req:{career:1,health:45}},
-  {id:'seller',cat:'work',icon:'🛒',name:'Смена продавцом',desc:'Постоянная работа и опыт общения.',hours:8,hunger:-19,happiness:-2,reputation:1,min:5000,max:7500,req:{career:2,education:10}},
-  {id:'office',cat:'work',icon:'💻',name:'Работа в офисе',desc:'Хорошая зарплата для образованного человека.',hours:8,hunger:-17,happiness:1,reputation:2,connections:1,min:14000,max:22000,req:{career:3,education:35}},
-  {id:'director',cat:'work',icon:'👔',name:'Работа директором',desc:'Большой доход и влияние.',hours:8,hunger:-15,happiness:3,reputation:3,connections:2,influence:1,min:50000,max:80000,req:{career:5,education:60,reputation:35}},
-  {id:'usd_freelance',cat:'work',icon:'🌐',name:'Заказ для иностранца',desc:'Удалённая подработка с оплатой в долларах.',hours:6,hunger:-13,happiness:2,reputation:1,min:60,max:100,currency:'USD',req:{career:3,education:35}},
-  {id:'usd_contract',cat:'work',icon:'💼',name:'Зарубежный контракт',desc:'Серьёзная работа на иностранную компанию.',hours:8,hunger:-16,happiness:4,reputation:2,connections:2,min:350,max:600,currency:'USD',req:{career:5,education:65,reputation:30}},
-
-  {id:'rest',cat:'health',icon:'🪑',name:'Отдохнуть на лавке',desc:'Немного восстановить силы на свежем воздухе.',hours:3,hunger:-8,happiness:4},
-  {id:'sleep',cat:'health',icon:'😴',name:'Поспать',desc:'Главный способ восстановить силы и пропустить часть дня.',hours:8,hunger:-18,health:5,happiness:3},
-  {id:'medicine',cat:'health',icon:'💊',name:'Купить лекарства',desc:'Небольшое восстановление здоровья.',hours:1,health:18,cost:650},
-  {id:'clinic',cat:'health',icon:'🏥',name:'Посетить клинику',desc:'Полноценное лечение.',hours:4,health:45,happiness:-2,cost:4200,req:{career:1}},
-  {id:'sport',cat:'health',icon:'🏃',name:'Тренировка',desc:'Укрепляет здоровье, но требует сил.',hours:2,hunger:-8,health:8,happiness:6,cost:250,req:{health:35}},
-
-  {id:'park',cat:'fun',icon:'🌳',name:'Погулять в парке',desc:'Бесплатно прогуляться и немного развеяться.',hours:2,hunger:-5,happiness:11},
-  {id:'cinema',cat:'fun',icon:'🎬',name:'Сходить в кино',desc:'Отвлечься от проблем.',hours:3,hunger:-5,happiness:20,cost:650},
-  {id:'club',cat:'fun',icon:'🎉',name:'Сходить в клуб',desc:'Много эмоций и новых знакомств.',hours:5,hunger:-10,happiness:28,connections:2,cost:4800,req:{career:3}},
-  {id:'travel',cat:'fun',icon:'✈️',name:'Отправиться в путешествие',desc:'Сильный бонус к счастью и репутации.',hours:12,hunger:-18,happiness:45,reputation:4,cost:35000,req:{career:5}},
-
-  {id:'library',cat:'education',icon:'📚',name:'Заниматься в библиотеке',desc:'Читать книги и постепенно повышать образование.',hours:4,hunger:-8,happiness:-2,education:5},
-  {id:'course',cat:'education',icon:'🧑‍💻',name:'Пройти онлайн-курс',desc:'Быстрый рост квалификации.',hours:5,hunger:-10,education:9,cost:1500},
-  {id:'college',cat:'education',icon:'🏫',name:'Учиться в колледже',desc:'Серьёзный шаг к карьере.',hours:8,hunger:-14,education:13,reputation:1,cost:6000,req:{education:12}},
-  {id:'university',cat:'education',icon:'🎓',name:'Учиться в университете',desc:'Открывает высшие должности.',hours:8,hunger:-14,education:16,reputation:2,connections:1,cost:18000,req:{career:3,education:32}},
-
-  {id:'trash_blog',cat:'media',icon:'📱',name:'Вести уличный блог',desc:'Рассказывать в сети о жизни и пути наверх.',hours:3,hunger:-6,happiness:3,reputation:-1,popularity:3},
-  {id:'metro_show',cat:'media',icon:'🎭',name:'Уличное выступление',desc:'Выступить у метро и привлечь внимание прохожих.',hours:4,hunger:-8,happiness:8,reputation:-2,popularity:5},
-  {id:'district_channel',cat:'media',icon:'📢',name:'Завести районный канал',desc:'Постить новости, жалобы и истории с улиц.',hours:4,hunger:-7,popularity:7,connections:1,cost:500,req:{education:8}},
-  {id:'local_interview',cat:'media',icon:'🎙️',name:'Дать интервью паблику',desc:'Рассказать местным, как вы поднялись со дна.',hours:4,hunger:-7,popularity:10,reputation:2,connections:1,cost:2000,req:{career:2,reputation:8}},
-  {id:'blogger_ads',cat:'media',icon:'🚀',name:'Купить рекламу у блогеров',desc:'Быстро увеличить охваты и узнаваемость.',hours:2,popularity:15,reputation:1,cost:12000,req:{career:4}},
-
-  {id:'volunteer',cat:'media',icon:'🙋',name:'Стать волонтёром',desc:'Помогать людям ради репутации и новых знакомых.',hours:5,hunger:-9,happiness:8,reputation:5,popularity:2},
-  {id:'networking',cat:'politics',icon:'🤝',name:'Деловая встреча',desc:'Создаёт полезные связи.',hours:3,hunger:-5,connections:5,reputation:2,cost:3000,req:{career:3}},
-  {id:'charity',cat:'media',icon:'💛',name:'Благотворительность',desc:'Повышает известность и доверие.',hours:2,happiness:8,reputation:7,popularity:6,cost:15000,req:{career:4}},
-  {id:'speech',cat:'politics',icon:'🎤',name:'Публичное выступление',desc:'Развивает популярность.',hours:4,hunger:-7,popularity:8,reputation:3,connections:2,cost:5000,req:{career:5,reputation:30}},
-
-  {id:'party',cat:'politics',icon:'🏛️',name:'Вступить в партию',desc:'Первый серьёзный политический шаг.',hours:5,reputation:4,connections:6,influence:4,cost:12000,req:{career:5,reputation:25}},
-  {id:'campaign',cat:'politics',icon:'📣',name:'Провести агитацию',desc:'Повышает популярность и влияние.',hours:6,hunger:-10,popularity:9,influence:4,cost:25000,req:{career:6}},
-  {id:'debate',cat:'politics',icon:'🗣️',name:'Участвовать в дебатах',desc:'Результат зависит от образования и репутации.',hours:5,hunger:-8,custom:'debate',cost:40000,req:{career:7,education:65}},
-  {id:'election',cat:'politics',icon:'🗳️',name:'Начать президентские выборы',desc:'Трёхэтапная кампания с риском проиграть и попасть под санкции.',hours:12,custom:'election',cost:500000,req:{career:8,popularity:70,reputation:60,influence:55,connections:50}}
+  {
+    "id": "find_food",
+    "cat": "food",
+    "icon": "🗑️",
+    "name": "Поискать еду у магазина",
+    "desc": "Проверить контейнеры возле магазина и найти что-нибудь съедобное.",
+    "hours": 4,
+    "hunger": 4,
+    "happiness": -4,
+    "health": -6,
+    "min": 0,
+    "max": 0
+  },
+  {
+    "id": "bread",
+    "cat": "food",
+    "icon": "🍞",
+    "name": "Купить батон",
+    "desc": "Самый простой покупной перекус.",
+    "hours": 2,
+    "hunger": 7,
+    "happiness": 0,
+    "cost": 80,
+    "health": -2
+  },
+  {
+    "id": "tea_bun",
+    "cat": "food",
+    "icon": "☕",
+    "name": "Чай с булочкой",
+    "desc": "Недорогой перекус, который насыщает лучше батона.",
+    "hours": 2,
+    "hunger": 12,
+    "happiness": 1,
+    "cost": 200,
+    "health": -1
+  },
+  {
+    "id": "shawarma",
+    "cat": "food",
+    "icon": "🌯",
+    "name": "Купить шаурму",
+    "desc": "Сытная уличная еда, но не самая полезная.",
+    "hours": 2,
+    "hunger": 20,
+    "happiness": 3,
+    "health": -2,
+    "cost": 500
+  },
+  {
+    "id": "canteen",
+    "cat": "food",
+    "icon": "🥣",
+    "name": "Поесть в столовой",
+    "desc": "Горячая еда по доступной цене.",
+    "hours": 1,
+    "hunger": 35,
+    "happiness": 9,
+    "health": 3,
+    "cost": 1200,
+    "req": {
+      "career": 1
+    }
+  },
+  {
+    "id": "cafe",
+    "cat": "food",
+    "icon": "🍲",
+    "name": "Поесть в кафе",
+    "desc": "Полноценный приём пищи и небольшой отдых.",
+    "hours": 1,
+    "hunger": 50,
+    "happiness": 15,
+    "health": 6,
+    "cost": 3000,
+    "req": {
+      "career": 2
+    }
+  },
+  {
+    "id": "groceries",
+    "cat": "food",
+    "icon": "🛍️",
+    "name": "Купить продукты",
+    "desc": "Купить нормальные продукты и хорошо поесть дома.",
+    "hours": 2,
+    "hunger": 70,
+    "happiness": 21,
+    "health": 10,
+    "cost": 7000,
+    "req": {
+      "career": 2
+    }
+  },
+  {
+    "id": "food_delivery",
+    "cat": "food",
+    "icon": "🥡",
+    "name": "Заказать доставку еды",
+    "desc": "Комфортный и очень сытный приём пищи.",
+    "hours": 1,
+    "hunger": 85,
+    "happiness": 29,
+    "health": 15,
+    "cost": 15000,
+    "req": {
+      "career": 3
+    }
+  },
+  {
+    "id": "restaurant",
+    "cat": "food",
+    "icon": "🍽️",
+    "name": "Ужин в ресторане",
+    "desc": "Самая дорогая и приятная еда в этой категории.",
+    "hours": 1,
+    "hunger": 100,
+    "happiness": 40,
+    "health": 22,
+    "cost": 35000,
+    "req": {
+      "career": 4
+    }
+  },
+  {
+    "id": "beg",
+    "cat": "work",
+    "icon": "🪙",
+    "name": "Просить милостыню",
+    "desc": "Попросить помощи у прохожих возле метро. Доход зависит от удачи.",
+    "hours": 3,
+    "hunger": -8,
+    "happiness": -8,
+    "reputation": -1,
+    "min": 120,
+    "max": 350,
+    "health": -2
+  },
+  {
+    "id": "bottles",
+    "cat": "work",
+    "icon": "♻️",
+    "name": "Собирать бутылки",
+    "desc": "Собирать и сдавать найденную тару.",
+    "hours": 3,
+    "hunger": -10,
+    "happiness": -7,
+    "health": -3,
+    "min": 250,
+    "max": 500
+  },
+  {
+    "id": "flyers",
+    "cat": "work",
+    "icon": "📄",
+    "name": "Раздавать листовки",
+    "desc": "Стоять у метро и раздавать рекламу прохожим.",
+    "hours": 4,
+    "hunger": -11,
+    "happiness": -6,
+    "min": 550,
+    "max": 900,
+    "health": -2
+  },
+  {
+    "id": "car_wash",
+    "cat": "work",
+    "icon": "🧽",
+    "name": "Помыть машины",
+    "desc": "Подработка на автомойке с оплатой после смены.",
+    "hours": 4,
+    "hunger": -12,
+    "happiness": -6,
+    "health": -4,
+    "min": 900,
+    "max": 1400
+  },
+  {
+    "id": "loader",
+    "cat": "work",
+    "icon": "📦",
+    "name": "Подработка грузчиком",
+    "desc": "Тяжёлая физическая работа, но платят сразу.",
+    "hours": 5,
+    "hunger": -16,
+    "happiness": -8,
+    "health": -7,
+    "min": 1400,
+    "max": 2200,
+    "req": {
+      "health": 42
+    }
+  },
+  {
+    "id": "cleaner",
+    "cat": "work",
+    "icon": "🧼",
+    "name": "Уборка помещений",
+    "desc": "Регулярная подработка по уборке офисов и подъездов.",
+    "hours": 6,
+    "hunger": -17,
+    "happiness": -7,
+    "health": -5,
+    "min": 2500,
+    "max": 3800,
+    "req": {
+      "career": 1
+    }
+  },
+  {
+    "id": "courier",
+    "cat": "work",
+    "icon": "🚲",
+    "name": "Смена курьером",
+    "desc": "Первая стабильная работа с заметно большей оплатой.",
+    "hours": 6,
+    "hunger": -18,
+    "happiness": -6,
+    "health": -5,
+    "min": 4500,
+    "max": 6500,
+    "req": {
+      "career": 1,
+      "health": 45
+    }
+  },
+  {
+    "id": "seller",
+    "cat": "work",
+    "icon": "🛒",
+    "name": "Смена продавцом",
+    "desc": "Постоянная работа и опыт общения с людьми.",
+    "hours": 8,
+    "hunger": -20,
+    "happiness": -6,
+    "reputation": 1,
+    "min": 7000,
+    "max": 10000,
+    "req": {
+      "career": 2,
+      "education": 10
+    },
+    "health": -4
+  },
+  {
+    "id": "taxi",
+    "cat": "work",
+    "icon": "🚕",
+    "name": "Смена в такси",
+    "desc": "Долгая смена за рулём с хорошим заработком.",
+    "hours": 8,
+    "hunger": -21,
+    "happiness": -8,
+    "health": -6,
+    "min": 11000,
+    "max": 16000,
+    "req": {
+      "career": 2,
+      "health": 45
+    }
+  },
+  {
+    "id": "tutor",
+    "cat": "work",
+    "icon": "🧑‍🏫",
+    "name": "Поработать репетитором",
+    "desc": "Провести занятия и заработать своими знаниями.",
+    "hours": 6,
+    "hunger": -16,
+    "happiness": -4,
+    "reputation": 2,
+    "min": 16000,
+    "max": 23000,
+    "req": {
+      "career": 3,
+      "education": 45,
+      "reputation": 10
+    },
+    "health": -3
+  },
+  {
+    "id": "office",
+    "cat": "work",
+    "icon": "💻",
+    "name": "Работа в офисе",
+    "desc": "Хорошая зарплата для образованного специалиста.",
+    "hours": 8,
+    "hunger": -20,
+    "happiness": -5,
+    "reputation": 2,
+    "connections": 1,
+    "min": 24000,
+    "max": 36000,
+    "req": {
+      "career": 3,
+      "education": 35
+    },
+    "health": -4
+  },
+  {
+    "id": "director",
+    "cat": "work",
+    "icon": "👔",
+    "name": "Работа директором",
+    "desc": "Очень высокий рублёвый доход и рост влияния.",
+    "hours": 9,
+    "hunger": -22,
+    "happiness": -8,
+    "reputation": 4,
+    "connections": 3,
+    "influence": 2,
+    "min": 75000,
+    "max": 115000,
+    "req": {
+      "career": 5,
+      "education": 60,
+      "reputation": 35
+    },
+    "health": -6
+  },
+  {
+    "id": "usd_freelance",
+    "cat": "work",
+    "icon": "🌐",
+    "name": "Заказ для иностранца",
+    "desc": "Удалённая подработка с оплатой в долларах.",
+    "hours": 7,
+    "hunger": -18,
+    "happiness": -5,
+    "reputation": 2,
+    "min": 450,
+    "max": 700,
+    "currency": "USD",
+    "req": {
+      "career": 3,
+      "education": 35
+    },
+    "health": -4
+  },
+  {
+    "id": "usd_contract",
+    "cat": "work",
+    "icon": "💼",
+    "name": "Зарубежный контракт",
+    "desc": "Крупный контракт на иностранную компанию.",
+    "hours": 10,
+    "hunger": -24,
+    "happiness": -9,
+    "reputation": 4,
+    "connections": 3,
+    "min": 1400,
+    "max": 2200,
+    "currency": "USD",
+    "req": {
+      "career": 5,
+      "education": 65,
+      "reputation": 30
+    },
+    "health": -7
+  },
+  {
+    "id": "rest",
+    "cat": "health",
+    "icon": "🪑",
+    "name": "Отдохнуть на лавке",
+    "desc": "Самый слабый бесплатный способ немного прийти в себя.",
+    "hours": 2,
+    "hunger": -6,
+    "health": 2,
+    "happiness": 2
+  },
+  {
+    "id": "first_aid",
+    "cat": "health",
+    "icon": "🩹",
+    "name": "Сходить в бесплатный медпункт",
+    "desc": "Базовая бесплатная медицинская помощь.",
+    "hours": 4,
+    "health": 5,
+    "happiness": -2,
+    "hunger": -4
+  },
+  {
+    "id": "sleep",
+    "cat": "health",
+    "icon": "😴",
+    "name": "Поспать",
+    "desc": "Восстановиться и пропустить значительную часть дня.",
+    "hours": 8,
+    "hunger": -18,
+    "health": 8,
+    "happiness": 5
+  },
+  {
+    "id": "wash_up",
+    "cat": "health",
+    "icon": "🚰",
+    "name": "Умыться и привести себя в порядок",
+    "desc": "Простая гигиена и небольшое платное восстановление.",
+    "hours": 1,
+    "health": 10,
+    "happiness": 6,
+    "cost": 150,
+    "hunger": -3
+  },
+  {
+    "id": "shower",
+    "cat": "health",
+    "icon": "🚿",
+    "name": "Принять горячий душ",
+    "desc": "Снять усталость и улучшить самочувствие.",
+    "hours": 2,
+    "health": 14,
+    "happiness": 9,
+    "cost": 500,
+    "hunger": -4
+  },
+  {
+    "id": "sport",
+    "cat": "health",
+    "icon": "🏃",
+    "name": "Тренировка",
+    "desc": "Укрепить организм, потратив сытость и деньги.",
+    "hours": 3,
+    "hunger": -12,
+    "health": 18,
+    "happiness": 6,
+    "cost": 1500,
+    "req": {
+      "health": 35
+    }
+  },
+  {
+    "id": "medicine",
+    "cat": "health",
+    "icon": "💊",
+    "name": "Купить лекарства",
+    "desc": "Заметно восстановить здоровье.",
+    "hours": 1,
+    "health": 25,
+    "cost": 4000,
+    "hunger": -2,
+    "happiness": -1
+  },
+  {
+    "id": "dentist",
+    "cat": "health",
+    "icon": "🦷",
+    "name": "Посетить стоматолога",
+    "desc": "Дорогое лечение накопившихся проблем.",
+    "hours": 4,
+    "health": 36,
+    "happiness": -3,
+    "cost": 12000,
+    "req": {
+      "career": 2
+    },
+    "hunger": -6
+  },
+  {
+    "id": "clinic",
+    "cat": "health",
+    "icon": "🏥",
+    "name": "Пройти лечение в клинике",
+    "desc": "Самое сильное восстановление здоровья.",
+    "hours": 5,
+    "health": 55,
+    "happiness": -4,
+    "cost": 30000,
+    "req": {
+      "career": 1
+    },
+    "hunger": -8
+  },
+  {
+    "id": "music",
+    "cat": "fun",
+    "icon": "🎧",
+    "name": "Послушать музыку",
+    "desc": "Бесплатно и ненадолго отвлечься.",
+    "hours": 1,
+    "hunger": -3,
+    "happiness": 7,
+    "health": -1
+  },
+  {
+    "id": "park",
+    "cat": "fun",
+    "icon": "🌳",
+    "name": "Погулять в парке",
+    "desc": "Спокойно провести время на свежем воздухе.",
+    "hours": 2,
+    "hunger": -5,
+    "happiness": 11,
+    "health": -1
+  },
+  {
+    "id": "internet_cafe",
+    "cat": "fun",
+    "icon": "🖥️",
+    "name": "Посидеть в интернет-кафе",
+    "desc": "Отдохнуть, посмотреть видео и немного поучиться.",
+    "hours": 2,
+    "hunger": -7,
+    "happiness": 16,
+    "education": 1,
+    "cost": 500,
+    "health": -2
+  },
+  {
+    "id": "cinema",
+    "cat": "fun",
+    "icon": "🎬",
+    "name": "Сходить в кино",
+    "desc": "Хорошо отвлечься от повседневных проблем.",
+    "hours": 3,
+    "hunger": -8,
+    "happiness": 22,
+    "cost": 1500,
+    "health": -2
+  },
+  {
+    "id": "bowling",
+    "cat": "fun",
+    "icon": "🎳",
+    "name": "Сходить в боулинг",
+    "desc": "Активный отдых и возможность познакомиться с людьми.",
+    "hours": 4,
+    "hunger": -10,
+    "happiness": 28,
+    "connections": 1,
+    "cost": 5000,
+    "req": {
+      "career": 2
+    },
+    "health": -3
+  },
+  {
+    "id": "club",
+    "cat": "fun",
+    "icon": "🎉",
+    "name": "Сходить в клуб",
+    "desc": "Яркий вечер, эмоции и новые знакомства.",
+    "hours": 5,
+    "hunger": -14,
+    "happiness": 35,
+    "connections": 2,
+    "cost": 12000,
+    "req": {
+      "career": 3
+    },
+    "health": -7
+  },
+  {
+    "id": "concert",
+    "cat": "fun",
+    "icon": "🎵",
+    "name": "Сходить на концерт",
+    "desc": "Большое событие с сильным ростом настроения.",
+    "hours": 6,
+    "hunger": -16,
+    "happiness": 43,
+    "popularity": 2,
+    "cost": 30000,
+    "req": {
+      "career": 4
+    },
+    "health": -5
+  },
+  {
+    "id": "travel",
+    "cat": "fun",
+    "icon": "✈️",
+    "name": "Отправиться в путешествие",
+    "desc": "Самое сильное развлечение с бонусом к репутации.",
+    "hours": 14,
+    "hunger": -24,
+    "happiness": 55,
+    "reputation": 5,
+    "cost": 100000,
+    "req": {
+      "career": 5
+    },
+    "health": -3
+  },
+  {
+    "id": "newspaper",
+    "cat": "education",
+    "icon": "📰",
+    "name": "Почитать бесплатную газету",
+    "desc": "Самый простой способ немного повысить кругозор.",
+    "hours": 2,
+    "hunger": -4,
+    "happiness": 0,
+    "education": 2,
+    "health": -1
+  },
+  {
+    "id": "free_lesson",
+    "cat": "education",
+    "icon": "✏️",
+    "name": "Посетить бесплатный урок",
+    "desc": "Получить базовые знания без оплаты.",
+    "hours": 3,
+    "hunger": -6,
+    "happiness": -2,
+    "education": 4,
+    "health": -2
+  },
+  {
+    "id": "library",
+    "cat": "education",
+    "icon": "📚",
+    "name": "Заниматься в библиотеке",
+    "desc": "Регулярно читать и развивать образование.",
+    "hours": 4,
+    "hunger": -8,
+    "happiness": -3,
+    "education": 6,
+    "health": -2
+  },
+  {
+    "id": "evening_classes",
+    "cat": "education",
+    "icon": "📝",
+    "name": "Ходить на вечерние курсы",
+    "desc": "Получить больше практических знаний.",
+    "hours": 5,
+    "hunger": -10,
+    "education": 8,
+    "cost": 1500,
+    "health": -3,
+    "happiness": -4
+  },
+  {
+    "id": "course",
+    "cat": "education",
+    "icon": "🧑‍💻",
+    "name": "Пройти онлайн-курс",
+    "desc": "Быстро повысить квалификацию.",
+    "hours": 6,
+    "hunger": -12,
+    "education": 10,
+    "cost": 5000,
+    "health": -3,
+    "happiness": -4
+  },
+  {
+    "id": "certificate",
+    "cat": "education",
+    "icon": "📜",
+    "name": "Получить профессиональный сертификат",
+    "desc": "Подтвердить знания и улучшить репутацию.",
+    "hours": 7,
+    "hunger": -14,
+    "education": 13,
+    "reputation": 2,
+    "cost": 15000,
+    "req": {
+      "career": 2,
+      "education": 25
+    },
+    "health": -4,
+    "happiness": -5
+  },
+  {
+    "id": "college",
+    "cat": "education",
+    "icon": "🏫",
+    "name": "Учиться в колледже",
+    "desc": "Серьёзное образование для стабильной карьеры.",
+    "hours": 8,
+    "hunger": -17,
+    "education": 16,
+    "reputation": 2,
+    "cost": 40000,
+    "req": {
+      "education": 12
+    },
+    "health": -5,
+    "happiness": -6
+  },
+  {
+    "id": "university",
+    "cat": "education",
+    "icon": "🎓",
+    "name": "Учиться в университете",
+    "desc": "Самый сильный рост образования и полезных связей.",
+    "hours": 10,
+    "hunger": -22,
+    "education": 20,
+    "reputation": 3,
+    "connections": 2,
+    "cost": 100000,
+    "req": {
+      "career": 3,
+      "education": 32
+    },
+    "health": -7,
+    "happiness": -8
+  },
+  {
+    "id": "short_post",
+    "cat": "media",
+    "icon": "✍️",
+    "name": "Написать пост о своей жизни",
+    "desc": "Поделиться короткой историей и получить первых читателей.",
+    "hours": 1,
+    "hunger": -3,
+    "happiness": -1,
+    "popularity": 2,
+    "health": -1
+  },
+  {
+    "id": "trash_blog",
+    "cat": "media",
+    "icon": "📱",
+    "name": "Вести уличный блог",
+    "desc": "Регулярно рассказывать о жизни и пути наверх.",
+    "hours": 2,
+    "hunger": -5,
+    "happiness": -2,
+    "reputation": -1,
+    "popularity": 3,
+    "health": -2
+  },
+  {
+    "id": "comments",
+    "cat": "media",
+    "icon": "💬",
+    "name": "Ответить подписчикам",
+    "desc": "Поддерживать общение и удерживать внимание аудитории.",
+    "hours": 2,
+    "hunger": -6,
+    "happiness": -3,
+    "popularity": 4,
+    "req": {
+      "education": 5
+    },
+    "health": -2
+  },
+  {
+    "id": "metro_show",
+    "cat": "media",
+    "icon": "🎭",
+    "name": "Уличное выступление",
+    "desc": "Выступить у метро и привлечь прохожих.",
+    "hours": 3,
+    "hunger": -8,
+    "happiness": -2,
+    "reputation": -1,
+    "popularity": 5,
+    "health": -3
+  },
+  {
+    "id": "volunteer",
+    "cat": "media",
+    "icon": "🙋",
+    "name": "Стать волонтёром",
+    "desc": "Помогать людям и становиться узнаваемее.",
+    "hours": 4,
+    "hunger": -10,
+    "happiness": 3,
+    "reputation": 5,
+    "popularity": 6,
+    "health": -3
+  },
+  {
+    "id": "district_channel",
+    "cat": "media",
+    "icon": "📢",
+    "name": "Завести районный канал",
+    "desc": "Публиковать новости и истории своего района.",
+    "hours": 4,
+    "hunger": -10,
+    "popularity": 8,
+    "connections": 1,
+    "cost": 1000,
+    "req": {
+      "education": 8
+    },
+    "health": -3,
+    "happiness": -3
+  },
+  {
+    "id": "useful_video",
+    "cat": "media",
+    "icon": "🎥",
+    "name": "Снять полезное видео",
+    "desc": "Качественный ролик повышает доверие и охваты.",
+    "hours": 5,
+    "hunger": -12,
+    "popularity": 10,
+    "reputation": 3,
+    "cost": 4000,
+    "req": {
+      "education": 15
+    },
+    "health": -4,
+    "happiness": -4
+  },
+  {
+    "id": "local_interview",
+    "cat": "media",
+    "icon": "🎙️",
+    "name": "Дать интервью паблику",
+    "desc": "Рассказать местным о своём пути и планах.",
+    "hours": 5,
+    "hunger": -12,
+    "popularity": 12,
+    "reputation": 3,
+    "connections": 2,
+    "cost": 10000,
+    "req": {
+      "career": 2,
+      "reputation": 8
+    },
+    "health": -4,
+    "happiness": -5
+  },
+  {
+    "id": "charity",
+    "cat": "media",
+    "icon": "💛",
+    "name": "Провести благотворительную акцию",
+    "desc": "Получить доверие людей и большой охват.",
+    "hours": 5,
+    "hunger": -13,
+    "happiness": 4,
+    "reputation": 8,
+    "popularity": 15,
+    "cost": 30000,
+    "req": {
+      "career": 4
+    },
+    "health": -4
+  },
+  {
+    "id": "district_event",
+    "cat": "media",
+    "icon": "🎪",
+    "name": "Организовать районное мероприятие",
+    "desc": "Собрать много людей и получить новые связи.",
+    "hours": 7,
+    "hunger": -16,
+    "happiness": -5,
+    "popularity": 18,
+    "reputation": 6,
+    "connections": 4,
+    "cost": 75000,
+    "req": {
+      "career": 4
+    },
+    "health": -6
+  },
+  {
+    "id": "blogger_ads",
+    "cat": "media",
+    "icon": "🚀",
+    "name": "Купить рекламу у крупных блогеров",
+    "desc": "Самый быстрый и дорогой рост известности.",
+    "hours": 3,
+    "popularity": 24,
+    "reputation": 2,
+    "cost": 200000,
+    "req": {
+      "career": 4
+    },
+    "health": -2,
+    "hunger": -5,
+    "happiness": -3
+  },
+  {
+    "id": "residents_meeting",
+    "cat": "politics",
+    "icon": "🏘️",
+    "name": "Посетить собрание жителей",
+    "desc": "Обсудить проблемы района и получить первый политический опыт.",
+    "hours": 3,
+    "hunger": -6,
+    "connections": 1,
+    "popularity": 1,
+    "influence": 1,
+    "req": {
+      "career": 2
+    },
+    "health": -2,
+    "happiness": -2
+  },
+  {
+    "id": "public_appeal",
+    "cat": "politics",
+    "icon": "📨",
+    "name": "Подать обращение в администрацию",
+    "desc": "Добиться решения небольшой городской проблемы.",
+    "hours": 3,
+    "hunger": -6,
+    "reputation": 2,
+    "popularity": 2,
+    "influence": 2,
+    "req": {
+      "education": 20
+    },
+    "health": -2,
+    "happiness": -2
+  },
+  {
+    "id": "campaign_helper",
+    "cat": "politics",
+    "icon": "🗂️",
+    "name": "Помочь в политическом штабе",
+    "desc": "Получить опыт организации кампаний.",
+    "hours": 5,
+    "hunger": -10,
+    "connections": 3,
+    "popularity": 3,
+    "influence": 3,
+    "req": {
+      "career": 4
+    },
+    "health": -3,
+    "happiness": -3
+  },
+  {
+    "id": "networking",
+    "cat": "politics",
+    "icon": "🤝",
+    "name": "Провести деловую встречу",
+    "desc": "Найти полезных союзников и повысить влияние.",
+    "hours": 4,
+    "hunger": -9,
+    "connections": 5,
+    "reputation": 3,
+    "popularity": 4,
+    "influence": 4,
+    "cost": 5000,
+    "req": {
+      "career": 3
+    },
+    "health": -3,
+    "happiness": -3
+  },
+  {
+    "id": "party",
+    "cat": "politics",
+    "icon": "🏛️",
+    "name": "Вступить в партию",
+    "desc": "Сделать первый серьёзный политический шаг.",
+    "hours": 5,
+    "hunger": -11,
+    "reputation": 4,
+    "connections": 6,
+    "popularity": 5,
+    "influence": 5,
+    "cost": 20000,
+    "req": {
+      "career": 5,
+      "reputation": 25
+    },
+    "health": -4,
+    "happiness": -4
+  },
+  {
+    "id": "public_hearing",
+    "cat": "politics",
+    "icon": "🏫",
+    "name": "Организовать общественные слушания",
+    "desc": "Провести встречу жителей и представителей власти.",
+    "hours": 6,
+    "hunger": -13,
+    "reputation": 5,
+    "connections": 7,
+    "popularity": 7,
+    "influence": 7,
+    "cost": 60000,
+    "req": {
+      "career": 5
+    },
+    "health": -5,
+    "happiness": -5
+  },
+  {
+    "id": "speech",
+    "cat": "politics",
+    "icon": "🎤",
+    "name": "Провести публичное выступление",
+    "desc": "Заметно увеличить известность и политическое влияние.",
+    "hours": 6,
+    "hunger": -15,
+    "popularity": 10,
+    "reputation": 6,
+    "connections": 8,
+    "influence": 9,
+    "cost": 150000,
+    "req": {
+      "career": 5,
+      "reputation": 30
+    },
+    "health": -6,
+    "happiness": -6
+  },
+  {
+    "id": "campaign",
+    "cat": "politics",
+    "icon": "📣",
+    "name": "Провести крупную агитацию",
+    "desc": "Запустить масштабную политическую кампанию.",
+    "hours": 8,
+    "hunger": -18,
+    "popularity": 15,
+    "influence": 12,
+    "cost": 400000,
+    "req": {
+      "career": 6
+    },
+    "health": -7,
+    "happiness": -8
+  },
+  {
+    "id": "debate",
+    "cat": "politics",
+    "icon": "🗣️",
+    "name": "Участвовать в национальных дебатах",
+    "desc": "Рискованное действие с крупной политической наградой.",
+    "hours": 8,
+    "hunger": -18,
+    "custom": "debate",
+    "cost": 900000,
+    "req": {
+      "career": 7,
+      "education": 65
+    },
+    "health": -8,
+    "happiness": -10
+  },
+  {
+    "id": "election",
+    "cat": "politics",
+    "icon": "🗳️",
+    "name": "Начать президентские выборы",
+    "desc": "Трёхэтапная кампания с риском проиграть и попасть под санкции.",
+    "hours": 12,
+    "custom": "election",
+    "cost": 2000000,
+    "req": {
+      "career": 8,
+      "popularity": 70,
+      "reputation": 60,
+      "influence": 55,
+      "connections": 50
+    },
+    "health": -10,
+    "hunger": -24,
+    "happiness": -12
+  }
 ];
 
 const careers = [
@@ -251,10 +1259,11 @@ function loadState(){
       criticalActive:{...defaultState.criticalActive,...(saved.criticalActive||{})}
     };
     delete merged.energy;
+    delete merged.foodUsesToday;
     return merged;
   } catch { return freshState(); }
 }
-function saveState(){ delete state.energy; localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }
+function saveState(){ delete state.energy; delete state.foodUsesToday; localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }
 function haptic(type='light'){ tg?.HapticFeedback?.impactOccurred?.(type); }
 function showToast(text){
   const el=document.getElementById('toast'); el.textContent=text; el.classList.add('show');
@@ -432,19 +1441,27 @@ function performAction(id){
   if(a.cost) spend(a.cost);
   const reward=a.max?random(a.min||0,a.max):0;
   if(reward){ if(a.currency==='USD') earnDollars(reward); else earn(reward); }
-  ['hunger','health','happiness','education','reputation','connections','popularity','influence'].forEach(k=>addValue(k,a[k]||0));
+
+  ['hunger','health','happiness','education','reputation','connections','popularity','influence'].forEach(k=>{
+    addValue(k,a[k]||0);
+  });
+
   advanceTime(a.hours||1);
   if(state.gameOver) return;
   state.actionsDone++;
   recalcCareer();
   saveState(); renderAll(); haptic();
-  showToast(reward?`${a.name}: +${a.currency==='USD'?'$':''}${fmt(reward)}${a.currency==='USD'?'':' ₽'}`:a.name);
+  if(reward){
+    showToast(`${a.name}: +${a.currency==='USD'?'$':''}${fmt(reward)}${a.currency==='USD'?'':' ₽'}`);
+  }else{
+    showToast(a.name);
+  }
 }
 
 function performCustom(a){
   if(a.cost && state.rubles<a.cost){showToast('Недостаточно рублей');return;}
   if(a.id==='debate'){
-    spend(a.cost); addValue('hunger',a.hunger||0); const score=state.education+state.reputation+random(-25,25);
+    spend(a.cost); ['hunger','health','happiness'].forEach(k=>addValue(k,a[k]||0)); const score=state.education+state.reputation+random(-25,25);
     if(score>105){state.popularity=clamp(state.popularity+15);state.influence=clamp(state.influence+8);showToast('Вы блестяще выиграли дебаты');}
     else{state.popularity=clamp(state.popularity-4);state.happiness=clamp(state.happiness-8);showToast('Дебаты прошли неудачно');}
     advanceTime(a.hours);
@@ -452,6 +1469,7 @@ function performCustom(a){
   if(a.id==='election'){
     if(state.day<state.electionBanUntil){showToast(`Повторные выборы доступны с ${state.electionBanUntil}-го дня`);return;}
     spend(a.cost);
+    ['hunger','health','happiness'].forEach(k=>addValue(k,a[k]||0));
     suppressRandomEvent=true;
     advanceTime(a.hours);
     suppressRandomEvent=false;
@@ -718,7 +1736,8 @@ function renderActions(){
     const labels={hunger:'🍗',health:'❤️',happiness:'😊',education:'🎓',reputation:'⭐',connections:'🤝',popularity:'📣',influence:'🏛️'};
     Object.keys(labels).forEach(k=>{if(a[k])effects.push(`${labels[k]} ${a[k]>0?'+':''}${a[k]}`)});
     const subtitle=availability.disabled?availability.reason:a.desc;
-    return `<article class="action-card ${locked?'locked':''}"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${a.icon}</div><div><div class="card-title">${a.name}</div><div class="card-subtitle">${subtitle}</div></div></div><div class="reward ${a.max?'positive':a.cost?'negative':''}">${actionMoney(a)}</div></div><div class="effects">${effects.map(x=>`<span class="effect">${x}</span>`).join('')}</div><button class="action-button" data-action="${a.id}" ${availability.disabled?'disabled':''}>${availability.disabled?'Недоступно':'Выполнить'}</button></article>`;
+    const cardClass=`action-card action-card-clickable ${availability.disabled?'unavailable':''}`;
+    return `<article class="${cardClass}" data-action="${a.id}" role="button" tabindex="0" aria-disabled="${availability.disabled?'true':'false'}"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${a.icon}</div><div><div class="card-title">${a.name}</div><div class="card-subtitle">${subtitle}</div></div></div><div class="reward ${a.max?'positive':a.cost?'negative':''}">${actionMoney(a)}</div></div><div class="effects">${effects.map(x=>`<span class="effect">${x}</span>`).join('')}</div></article>`;
   }).join('');
 }
 function renderCareer(){
@@ -818,6 +1837,13 @@ document.addEventListener('click',e=>{
   const act=e.target.closest('[data-action]');if(act){performAction(act.dataset.action);return;}
   const home=e.target.closest('[data-home]');if(home){buyHome(home.dataset.home);return;}
   const asset=e.target.closest('[data-asset]');if(asset){buyAsset(asset.dataset.asset);return;}
+});
+
+document.addEventListener('keydown',e=>{
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches('.action-card-clickable[data-action]')){
+    e.preventDefault();
+    performAction(e.target.dataset.action);
+  }
 });
 
 document.getElementById('modalClose').onclick=closeModal;
