@@ -7,18 +7,19 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#f6c945" />
-  <title>От бомжа до президента — v2.0.16</title>
+  <title>От бомжа до президента — v2.3</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=2.0.16" />
+  <link rel="stylesheet" href="./styles.css?v=2.3-20260623" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body class="home-screen">
   <div class="app-shell">
     <header class="topbar">
-      <div class="topbar-main">
-        <div>
+      <div class="topbar-main telegram-safe-header">
+        <div class="topbar-left-safe" aria-hidden="true"></div>
+        <div class="topbar-center">
           <div class="eyebrow">День <span id="dayLabel">1</span> · <span id="timeLabel">08:00</span></div>
           <h1 id="screenTitle">Главная</h1>
         </div>
@@ -64,6 +65,8 @@
           </div>
         </article>
 
+
+
         <div class="money-grid home-summary-duplicate">
           <article class="money-card dark"><span>Рубли</span><strong id="rublesValue">120 ₽</strong></article>
           <article class="money-card dollar-card"><span>Доллары</span><strong id="dollarsValue">0 <i class="dollar-symbol">$</i></strong><small class="rate-line flat" id="exchangeRateValue">База 92.00 ₽</small></article>
@@ -101,17 +104,21 @@
           </div>
         </article>
 
-        <article class="panel goal-panel">
-          <div>
-            <div class="muted small">Следующая цель</div>
-            <h3 id="goalTitle">Бомж с шабашками</h3>
-            <p id="goalText">Заработайте первые 5 000 ₽.</p>
+        <article class="panel detailed-goal-panel">
+          <div class="goal-panel-head">
+            <div>
+              <div class="muted small">Подробный прогресс главы</div>
+              <h3 id="goalTitle">Переход к следующей главе</h3>
+              <p id="goalText">Выполните все условия, чтобы продолжить путь.</p>
+            </div>
+            <div class="goal-percent-badge" id="goalPercent">0%</div>
           </div>
-          <div class="goal-progress">
-            <strong id="goalPercent">0%</strong>
+          <div class="chapter-requirements" id="chapterRequirements"></div>
+          <div class="goal-progress-wide">
             <div class="progress"><div class="progress-fill" id="goalBar"></div></div>
           </div>
         </article>
+
       </section>
 
       <section class="screen" data-screen="actions">
@@ -128,7 +135,8 @@
           </div>
           <div class="career-icon" id="careerIcon">🪙</div>
         </article>
-        <article class="panel" id="jobPanel">
+
+        <article class="panel current-job-top" id="jobPanel">
           <div class="section-head"><h3>Текущая работа</h3><span class="pill" id="currentJobLabel">Без работы</span></div>
           <div id="currentJobCard" class="v2-block"></div>
         </article>
@@ -224,6 +232,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=2.0.16"></script>
+  <script src="./app.js?v=2.3-20260623"></script>
 </body>
 </html>

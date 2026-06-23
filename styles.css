@@ -330,3 +330,148 @@ body:not(.home-screen) .hud-stat.good .hud-mini-bar > div{
 body:not(.home-screen) .hud-stat:not(.bad):not(.good) .hud-stat-line strong{
   color:var(--ink);
 }
+
+
+/* v2.1.1 — Telegram-safe centered header and detailed chapter progress */
+.telegram-safe-header{
+  display:grid !important;
+  grid-template-columns:52px minmax(0,1fr) 52px !important;
+  align-items:center;
+  gap:8px;
+}
+.topbar-left-safe{width:52px;height:42px}
+.topbar-center{min-width:0;text-align:center}
+.topbar-center .eyebrow,.topbar-center h1{text-align:center}
+.topbar-center h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.telegram-safe-header .icon-button{justify-self:end}
+.detailed-goal-panel{display:block}
+.goal-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.goal-panel-head>div:first-child{min-width:0;flex:1}
+.goal-panel-head h3{margin:3px 0 0}
+.goal-panel-head p{margin:6px 0 0;font-size:11px;color:var(--muted);line-height:1.45}
+.goal-percent-badge{flex:0 0 auto;min-width:50px;padding:9px 10px;border-radius:14px;background:var(--ink);color:#fff;text-align:center;font-size:12px;font-weight:800}
+.chapter-requirements{display:grid;gap:9px;margin-top:15px}
+.chapter-requirement{width:100%;display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:10px;border:1px solid var(--line);padding:11px;border-radius:16px;background:#fffaf1;color:var(--ink);text-align:left;font:inherit;cursor:pointer}
+.chapter-requirement:active{transform:scale(.99)}
+.chapter-requirement.done{background:#f0fbf5;border-color:#b8dfca}
+.chapter-requirement-icon{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--yellow-soft);font-size:16px;font-weight:800}
+.chapter-requirement.done .chapter-requirement-icon{background:#d8f2e3;color:var(--good)}
+.chapter-requirement-copy{min-width:0}
+.chapter-requirement-title{display:block;font-size:11px;font-weight:800;line-height:1.25}
+.chapter-requirement-value{display:block;margin-top:3px;font-size:9px;line-height:1.35;color:var(--muted)}
+.chapter-requirement-state{font-size:9px;font-weight:800;color:var(--yellow-dark);white-space:nowrap}
+.chapter-requirement.done .chapter-requirement-state{color:var(--good)}
+.requirement-mini-progress{height:6px;margin-top:7px;border-radius:999px;background:#eee8dc;overflow:hidden}
+.requirement-mini-progress>span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--yellow-dark),var(--yellow))}
+.chapter-requirement.done .requirement-mini-progress>span{background:linear-gradient(90deg,#217a52,#49bd87)}
+.goal-progress-wide{margin-top:13px}
+@media(max-width:360px){
+  .telegram-safe-header{grid-template-columns:46px minmax(0,1fr) 46px !important;gap:5px}
+  .topbar-left-safe{width:46px;height:38px}
+  .chapter-requirement{grid-template-columns:32px minmax(0,1fr) auto;padding:9px;gap:8px}
+  .chapter-requirement-icon{width:32px;height:32px}
+}
+
+
+/* v2.1.2 — unmistakable Telegram-safe header and visible chapter progress */
+.topbar-main.telegram-safe-header{
+  position:relative !important;
+  display:block !important;
+  min-height:52px;
+}
+.topbar-left-safe{display:none !important}
+.topbar-center{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  width:min(62vw,250px);
+  text-align:center;
+  z-index:1;
+}
+.topbar-center .eyebrow{
+  font-size:11px;
+  line-height:1.2;
+  letter-spacing:.01em;
+}
+.topbar-center h1{
+  margin-top:3px;
+  font-size:21px;
+  line-height:1.05;
+  text-align:center;
+}
+.telegram-safe-header .icon-button{
+  position:absolute;
+  right:0;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:2;
+}
+.detailed-goal-panel{
+  margin-top:12px;
+  border:2px solid rgba(230,155,40,.32);
+  background:linear-gradient(155deg,#fffdf8 0%,#fff4ce 100%);
+  box-shadow:0 12px 28px rgba(128,89,0,.10);
+}
+.detailed-goal-panel .goal-panel-head::before{
+  content:'✓';
+  flex:0 0 34px;
+  width:34px;
+  height:34px;
+  border-radius:12px;
+  display:grid;
+  place-items:center;
+  background:var(--yellow);
+  color:var(--ink);
+  font-weight:900;
+  margin-right:2px;
+}
+.detailed-goal-panel .goal-panel-head>div:first-child{flex:1}
+.chapter-requirement{
+  background:rgba(255,255,255,.88);
+  box-shadow:0 5px 14px rgba(113,79,0,.05);
+}
+@media(max-width:370px){
+  .topbar-center{width:min(58vw,220px)}
+  .topbar-center h1{font-size:19px}
+}
+
+/* v2.2 — fixed action categories, exchange warning and career layout */
+body:not(.home-screen) .screen[data-screen="actions"].active .category-row{
+  position:fixed;
+  top:var(--fixed-topbar-height,166px);
+  left:50%;
+  transform:translateX(-50%);
+  width:min(100%,540px);
+  z-index:39;
+  padding:8px 13px 10px;
+  border-bottom:1px solid rgba(238,229,213,.9);
+  background:rgba(255,250,240,.97);
+  backdrop-filter:blur(16px);
+  box-shadow:0 7px 18px rgba(65,49,13,.07);
+}
+body:not(.home-screen) .screen[data-screen="actions"].active #actionsList{
+  padding-top:calc(var(--fixed-action-categories-height,44px) + 7px);
+}
+.exchange-warning{
+  margin-top:9px;
+  padding:10px 11px;
+  border:1px solid #efb1b1;
+  border-radius:12px;
+  background:#fff0f0;
+  color:#9d2f2f;
+  font-size:10px;
+  line-height:1.4;
+  font-weight:800;
+  opacity:0;
+  transform:translateY(-3px);
+  transition:opacity .16s ease,transform .16s ease;
+}
+.exchange-warning.show{opacity:1;transform:translateY(0)}
+.current-job-top{margin-top:0;border:2px solid rgba(246,201,69,.55)}
+.current-job-top+.career-summary{margin-top:11px}
+
+
+/* v2.3 */
+.career-summary + .current-job-top{margin-top:11px}
+.current-job-top + .career-summary{margin-top:0}
