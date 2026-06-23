@@ -6,12 +6,13 @@ if (tg) {
   tg.setBackgroundColor?.('#fffaf0');
 }
 
-const STORAGE_KEY = 'street_to_president_v1';
+const STORAGE_KEY = 'street_to_president_v2';
+const LEGACY_STORAGE_KEY = 'street_to_president_v1';
 const CRITICAL_LIMIT_HOURS = 24;
 const clamp = (v, min = 0, max = 100) => Math.max(min, Math.min(max, v));
 const fmt = n => Math.round(n).toLocaleString('ru-RU');
 const random = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
-const chance = (probability, good, bad) => (Math.random() < probability ? good() : bad());
+const chance = (probability, good, bad) => (Math.random() < Math.min(.95, probability + ((typeof state!=='undefined'&&Number(state.luck))||0)*.001) ? good() : bad());
 const clampRate = rate => Math.max(30, Math.min(110, Math.round(rate * 100) / 100));
 
 const defaultState = {
@@ -19,6 +20,10 @@ const defaultState = {
   exchangeRate: 92.00, previousExchangeRate: 92.00, exchangeRateBias: 0,
   health: 72, hunger: 52, happiness: 35,
   education: 0, reputation: 0, connections: 0, popularity: 0, influence: 0,
+  strength: 0, intelligence: 0, charisma: 0, entrepreneurship: 0, politicsSkill: 0, luck: 0,
+  difficulty: 'normal', difficultyChosen: false, chapterIndex: 0,
+  currentJob: null, jobExperience: 0, jobWarnings: 0, jobLevels: {}, selectedBranch: 'labor',
+  inventory: {}, businesses: {}, relations: {}, characterVisits: {}, pendingStories: [], stories: {}, endings: [],
   day: 1, hour: 8, careerIndex: 0, homeId: 'street', assets: {},
   totalEarned: 0, totalDollarEarned: 0, totalSpent: 0, actionsDone: 0, daysSurvived: 1,
   president: false, electionLosses: 0, electionBanUntil: 0, lastEventId: null,
@@ -1235,6 +1240,141 @@ const events = [
   ]}
 ];
 
+
+
+const difficultyModes = {
+  easy:{name:'Лёгкая',income:1.20,cost:.82,decay:.78,eventRisk:.82,interview:12,deathHours:36},
+  normal:{name:'Нормальная',income:1,cost:1,decay:1,eventRisk:1,interview:0,deathHours:24},
+  hard:{name:'Сложная',income:.86,cost:1.20,decay:1.18,eventRisk:1.15,interview:-10,deathHours:24},
+  survival:{name:'Выживание',income:.72,cost:1.42,decay:1.35,eventRisk:1.30,interview:-18,deathHours:24}
+};
+
+const chaptersV2 = [
+  {name:'Бомж',icon:'🧔',goal:'Купите любое жильё и устройтесь на постоянную работу.',check:s=>true},
+  {name:'Работяга',icon:'🧑‍🔧',goal:'Получите образование 20, развейте силу, интеллект или харизму до 25 и накопите 150 000 ₽.',check:s=>s.homeId!=='street'&&!!s.currentJob},
+  {name:'Специалист',icon:'🧑‍💼',goal:'Откройте собственный бизнес.',check:s=>s.education>=20&&Math.max(s.strength,s.intelligence,s.charisma)>=25&&s.rubles>=150000},
+  {name:'Предприниматель',icon:'🏪',goal:'Достигните репутации 35, связей 25 и популярности 25.',check:s=>Object.keys(s.businesses||{}).length>0},
+  {name:'Влиятельный человек',icon:'👔',goal:'Получите политическую должность не ниже депутата и влияние 40.',check:s=>s.reputation>=35&&s.connections>=25&&s.popularity>=25},
+  {name:'Политик',icon:'🏛️',goal:'Достигните популярности 70, влияния 60 и навыка политики 45.',check:s=>s.currentJob?.branch==='politics'&&s.currentJob.level>=3&&s.influence>=40},
+  {name:'Кандидат в президенты',icon:'🇷🇺',goal:'Выиграйте президентские выборы.',check:s=>s.popularity>=70&&s.influence>=60&&s.politicsSkill>=45},
+  {name:'Президент',icon:'⭐',goal:'Вы прошли основной путь игры.',check:s=>s.president}
+];
+
+const itemCatalog = [
+  {id:'backpack',icon:'🎒',name:'Прочный рюкзак',price:7000,desc:'Доход от сбора бутылок и раздачи листовок +15%.'},
+  {id:'phone',icon:'📱',name:'Смартфон',price:18000,desc:'Медиа-действия дают на 20% больше популярности.'},
+  {id:'bike',icon:'🚲',name:'Велосипед',price:45000,desc:'Курьерская работа приносит на 30% больше.'},
+  {id:'laptop',icon:'💻',name:'Ноутбук',price:120000,desc:'Открывает IT-собеседования и усиливает долларовые заказы.'},
+  {id:'suit',icon:'🤵',name:'Деловой костюм',price:85000,desc:'Повышает шанс собеседований и результат выборов.'},
+  {id:'car',icon:'🚗',name:'Автомобиль',price:900000,desc:'Долгие городские действия занимают на 1 час меньше.'},
+  {id:'medkit',icon:'🩹',name:'Аптечка',price:20000,desc:'Расходник: мгновенно восстанавливает 25 здоровья.',consumable:true}
+];
+
+const careerBranchesV2 = {
+  labor:{name:'Физический труд',icon:'🛠️',skill:'strength',jobs:[
+    {name:'Грузчик',salary:5500,req:{strength:5,health:40}},
+    {name:'Строитель',salary:13000,req:{strength:18,reputation:5}},
+    {name:'Мастер',salary:29000,req:{strength:32,reputation:15}},
+    {name:'Бригадир',salary:60000,req:{strength:45,charisma:20,connections:15}}
+  ]},
+  office:{name:'Офис',icon:'👔',skill:'charisma',jobs:[
+    {name:'Курьер',salary:7000,req:{health:40}},
+    {name:'Продавец',salary:15000,req:{education:12,charisma:8}},
+    {name:'Менеджер',salary:34000,req:{education:28,charisma:22,reputation:10}},
+    {name:'Директор',salary:85000,req:{education:50,charisma:38,reputation:30,connections:20}}
+  ]},
+  it:{name:'IT',icon:'💻',skill:'intelligence',jobs:[
+    {name:'Стажёр',salary:15000,req:{item:'laptop',education:20,intelligence:15}},
+    {name:'Программист',salary:42000,req:{item:'laptop',education:35,intelligence:30}},
+    {name:'Ведущий разработчик',salary:100000,req:{education:55,intelligence:50,reputation:18}},
+    {name:'Технический директор',salary:220000,req:{intelligence:70,charisma:25,connections:25}}
+  ]},
+  media:{name:'Медиа',icon:'📣',skill:'charisma',jobs:[
+    {name:'Уличный блогер',salary:10000,req:{item:'phone',charisma:10}},
+    {name:'Районный блогер',salary:28000,req:{popularity:18,charisma:24}},
+    {name:'Известный блогер',salary:75000,req:{popularity:45,reputation:20,charisma:40}},
+    {name:'Медиаменеджер',salary:160000,req:{popularity:70,charisma:58,connections:30}}
+  ]},
+  politics:{name:'Политика',icon:'🏛️',skill:'politicsSkill',jobs:[
+    {name:'Активист',salary:12000,req:{reputation:12,charisma:12}},
+    {name:'Помощник депутата',salary:32000,req:{connections:18,politicsSkill:15}},
+    {name:'Депутат',salary:80000,req:{popularity:30,reputation:30,politicsSkill:30}},
+    {name:'Губернатор',salary:180000,req:{influence:40,popularity:50,politicsSkill:50,connections:40}}
+  ]}
+};
+
+const charactersV2 = [
+  {id:'misha',icon:'🧔‍♂️',name:'Миша',desc:'Знакомый с улицы. Помнит, с чего вы начинали.',chapter:0},
+  {id:'anna',icon:'👩‍⚕️',name:'Анна',desc:'Сотрудница ночлежки и волонтёр.',chapter:0},
+  {id:'sergey',icon:'👨‍💼',name:'Сергей',desc:'Первый серьёзный работодатель.',chapter:1},
+  {id:'irina',icon:'👩‍🏫',name:'Ирина',desc:'Преподаватель и карьерный наставник.',chapter:1},
+  {id:'oleg',icon:'🧑‍💼',name:'Олег',desc:'Предприниматель, который любит риск.',chapter:3},
+  {id:'marina',icon:'👩‍💻',name:'Марина',desc:'Журналист. Может помочь или выпустить компромат.',chapter:4},
+  {id:'viktor',icon:'🧑‍⚖️',name:'Виктор',desc:'Опытный депутат и партийный переговорщик.',chapter:5},
+  {id:'roman',icon:'🎤',name:'Роман',desc:'Главный политический соперник.',chapter:5}
+];
+
+const businessCatalogV2 = [
+  {id:'stall',icon:'🥤',name:'Торговая точка',price:350000,income:9000,req:{chapter:2,entrepreneurship:8}},
+  {id:'carwash',icon:'🚿',name:'Автомойка',price:850000,income:22000,req:{chapter:2,entrepreneurship:18}},
+  {id:'cafeBiz',icon:'☕',name:'Кафе',price:1800000,income:48000,req:{chapter:2,entrepreneurship:28}},
+  {id:'deliveryBiz',icon:'📦',name:'Служба доставки',price:4200000,income:115000,req:{chapter:4,entrepreneurship:42}},
+  {id:'itBiz',icon:'🖥️',name:'IT-компания',price:10000000,income:280000,req:{chapter:4,entrepreneurship:60,intelligence:55,item:'laptop'}}
+];
+
+function normalizeBusinessV2(owned){
+  owned.level=Math.max(1,Math.min(5,Number(owned.level)||1));
+  owned.lastProfit=Math.max(0,Number(owned.lastProfit)||0);
+  delete owned.staff;
+  delete owned.advertising;
+  delete owned.marketing;
+  delete owned.lastCustomers;
+  delete owned.lastRevenue;
+  delete owned.lastExpenses;
+  return owned;
+}
+function businessIncomeV2(b,owned){
+  return Math.round(b.income*normalizeBusinessV2(owned).level*difficultyCfg().income);
+}
+function businessUpgradeCostV2(b,owned){
+  const level=normalizeBusinessV2(owned).level;
+  return level>=5?0:scaledCost(Math.round(b.price*(.35+level*.20)));
+}
+
+const endingCatalogV2 = [
+  {id:'stable',icon:'🏠',name:'Стабильная жизнь'},
+  {id:'specialist',icon:'🎓',name:'Известный специалист'},
+  {id:'tycoon',icon:'🏢',name:'Владелец империи'},
+  {id:'media',icon:'📺',name:'Медиамагнат'},
+  {id:'governor',icon:'🏛️',name:'Губернатор'},
+  {id:'president',icon:'⭐',name:'Президент'},
+  {id:'survivor',icon:'🛡️',name:'100 дней выживания'},
+  {id:'death',icon:'☠️',name:'Смерть'}
+];
+
+const workEventsV2 = [
+  {title:'Лишняя смена',text:'Начальник просит остаться после работы.',choices:[
+    {text:'Согласиться',run:()=>{const p=Math.round((state.currentJob?.salary||3000)*.45);earn(p);addValue('health',-6);addValue('hunger',-8);addValue('happiness',-6);state.jobExperience+=3;return `Вы получили ${fmt(p)} ₽ и дополнительный опыт.`}},
+    {text:'Отказаться',run:()=>{if(Math.random()<.35)state.jobWarnings++;else state.happiness=clamp(state.happiness+3);return state.jobWarnings?'Начальник выписал предупреждение.':'Начальник спокойно принял отказ.'}}
+  ]},
+  {title:'Ошибка коллеги',text:'Вы заметили ошибку, которая может дорого обойтись компании.',choices:[
+    {text:'Исправить молча',run:()=>{state.jobExperience+=4;state.reputation=clamp(state.reputation+2);return 'Вы спасли проект и получили уважение коллег.'}},
+    {text:'Доложить начальнику',run:()=>{if(Math.random()<.55){state.jobExperience+=5;state.connections=clamp(state.connections+2);return 'Начальник оценил вашу внимательность.'}state.happiness=clamp(state.happiness-5);return 'Коллектив решил, что вы подставили коллегу.'}}
+  ]},
+  {title:'Сложный клиент',text:'Клиент устроил скандал и требует компенсацию.',choices:[
+    {text:'Успокоить клиента',run:()=>{const ok=Math.random()<Math.min(.9,.45+state.charisma/160);if(ok){state.reputation=clamp(state.reputation+3);state.jobExperience+=3;return 'Вы решили конфликт без потерь.'}state.jobWarnings++;return 'Клиент пожаловался руководству — предупреждение.'}},
+    {text:'Позвать начальника',run:()=>{state.happiness=clamp(state.happiness-2);return 'Проблему решили без вас, но опыта вы не получили.'}}
+  ]},
+  {title:'Лишняя сдача',text:'Клиент случайно переплатил 8 000 ₽.',choices:[
+    {text:'Вернуть',run:()=>{state.reputation=clamp(state.reputation+5);state.jobExperience+=2;return 'Честность заметили и запомнили.'}},
+    {text:'Оставить',run:()=>{if(Math.random()<.55){earn(8000);return 'Вы оставили деньги себе, и никто не заметил.'}state.jobWarnings++;state.reputation=clamp(state.reputation-7);return 'Обман раскрыли — предупреждение и падение репутации.'}}
+  ]}
+];
+
+// One action for every current job; all original 69 actions stay unchanged.
+actions.push({id:'job_shift',cat:'work',icon:'🕘',name:'Выйти на смену',desc:'Отработать смену на текущей должности.',hours:8,custom:'job_shift'});
+const electionActionV2=actions.find(a=>a.id==='election');if(electionActionV2)electionActionV2.req={chapter:6,popularity:70,reputation:55,influence:55,connections:45,politicsSkill:45};
+
 let state = loadState();
 let selectedCategory = 'food';
 let toastTimer;
@@ -1670,9 +1810,45 @@ function closeModal(force=false){
 }
 
 function renderAll(){normalize();renderHeader();renderHome();renderActions();renderCareer();renderAssets();renderProfile();saveState();}
+function compactHudNumber(value){
+  const n=Math.max(0,Number(value)||0);
+  const compact=(amount,suffix)=>{
+    const decimals=amount>=100?0:amount>=10?1:2;
+    let text=amount.toFixed(decimals);
+    if(decimals)text=text.replace(/0+$/,'').replace(/\.$/,'');
+    return `${text.replace('.',',')} ${suffix}`;
+  };
+  if(n>=1_000_000_000)return compact(n/1_000_000_000,'млрд');
+  if(n>=1_000_000)return compact(n/1_000_000,'млн');
+  if(n>=10_000)return compact(n/1_000,'тыс.');
+  return fmt(Math.round(n));
+}
 function renderHeader(){
   document.getElementById('dayLabel').textContent=state.day;
   document.getElementById('timeLabel').textContent=`${String(state.hour).padStart(2,'0')}:00`;
+  const rubles=document.getElementById('hudRublesValue');
+  const dollars=document.getElementById('hudDollarsValue');
+  if(rubles)rubles.textContent=compactHudNumber(state.rubles);
+  if(dollars)dollars.textContent=compactHudNumber(state.dollars);
+  const rublesChip=document.getElementById('hudRublesChip');
+  const dollarsChip=document.getElementById('hudDollarsChip');
+  if(rublesChip)rublesChip.title=`Рубли: ${fmt(state.rubles)} ₽`;
+  if(dollarsChip)dollarsChip.title=`Доллары: $${fmt(state.dollars)}`;
+  const hudStats={health:['hudHealthValue','hudHealthBar'],hunger:['hudHungerValue','hudHungerBar'],happiness:['hudHappinessValue','hudHappinessBar']};
+  Object.entries(hudStats).forEach(([key,[valueId,barId]])=>{
+    const value=Math.round(state[key]);
+    const valueEl=document.getElementById(valueId);
+    const barEl=document.getElementById(barId);
+    const chip=document.querySelector(`[data-hud-stat="${key}"]`);
+    if(valueEl)valueEl.textContent=value;
+    if(barEl)barEl.style.width=`${value}%`;
+    if(chip){
+      chip.classList.remove('critical','warning');
+      chip.classList.toggle('bad',value<25);
+      chip.classList.toggle('good',value>75);
+      chip.setAttribute('aria-label',`${key==='health'?'Здоровье':key==='hunger'?'Сытость':'Счастье'}: ${value}`);
+    }
+  });
 }
 function rankData(){
   const c=careers[state.careerIndex];
@@ -1697,16 +1873,20 @@ function renderHome(){
   document.getElementById('statusTitle').textContent=r.title;
   document.getElementById('statusText').textContent=r.text;
   document.getElementById('rublesValue').textContent=`${fmt(state.rubles)} ₽`;
-  document.getElementById('dollarsValue').textContent=`$${fmt(state.dollars)}`;
+  document.getElementById('dollarsValue').innerHTML=`${fmt(state.dollars)} <i class="dollar-symbol">$</i>`;
   const trend=exchangeTrend();
   const rateEl=document.getElementById('exchangeRateValue');
-  if(rateEl){rateEl.textContent=`База ${state.exchangeRate.toFixed(2)} ₽ ${trend==='up'?'▲':trend==='down'?'▼':'•'}`;rateEl.className=`rate-line ${trend}`;}
+  if(rateEl){rateEl.textContent=`${state.exchangeRate.toFixed(2)} ₽ ${trend==='up'?'▲':trend==='down'?'▼':'•'}`;rateEl.className=`rate-line ${trend}`;}
   const homeRate=document.getElementById('homeExchangeRate');
   if(homeRate){homeRate.textContent=`Купить ${buyUsdRate().toFixed(2)} ₽ · продать ${sellUsdRate().toFixed(2)} ₽ ${trend==='up'?'▲':trend==='down'?'▼':'•'}`;homeRate.className=`exchange-home-rate ${trend}`;}
   const stats=[['❤️','Здоровье','health'],['🍗','Сытость','hunger'],['😊','Счастье','happiness']];
   document.getElementById('statsList').innerHTML=stats.map(([i,n,k])=>`<div class="stat-row"><div class="stat-icon">${i}</div><div><div class="stat-name">${n}</div><div class="progress"><div class="progress-fill ${state[k]<25?'bad':state[k]>75?'good':''}" style="width:${state[k]}%"></div></div></div><div class="stat-value">${Math.round(state[k])}</div></div>`).join('');
-  const quick=['bread','bottles','rest'].map(id=>actions.find(a=>a.id===id));
-  document.getElementById('quickActions').innerHTML=quick.map(a=>`<button class="quick-action" data-action="${a.id}"><span>${a.icon}</span><strong>${a.name}</strong><small>${a.hours} ч.</small></button>`).join('');
+  const hubHome=homes.find(h=>h.id===state.homeId)||homes[0];
+  const hubItemCount=Object.values(state.inventory||{}).reduce((sum,count)=>sum+(Number(count)||0),0);
+  const hubAssetCount=Object.values(state.assets||{}).reduce((sum,count)=>sum+(Number(count)||0),0);
+  const hubHomeEl=document.getElementById('homeHubValue');if(hubHomeEl)hubHomeEl.textContent=hubHome.name;
+  const hubItemsEl=document.getElementById('inventoryHubValue');if(hubItemsEl)hubItemsEl.textContent=hubItemCount?`Куплено: ${hubItemCount}`:'Нет предметов';
+  const hubAssetsEl=document.getElementById('assetsHubValue');if(hubAssetsEl)hubAssetsEl.textContent=hubAssetCount?`Куплено: ${hubAssetCount}`:'Нет активов';
   const next=careers[Math.min(state.careerIndex+1,careers.length-1)];
   document.getElementById('goalTitle').textContent=next.name;
   document.getElementById('goalText').textContent=next.need;
@@ -1759,11 +1939,20 @@ function renderProfile(){
   document.getElementById('gameStats').innerHTML=rows.map(([a,b])=>`<div class="info-row"><span>${a}</span><strong>${b}</strong></div>`).join('');
 }
 
+function syncFixedTopbar(){
+  const topbar=document.querySelector('.topbar');
+  if(!topbar)return;
+  const height=Math.ceil(topbar.getBoundingClientRect().height);
+  if(height>0)document.documentElement.style.setProperty('--fixed-topbar-height',`${height}px`);
+}
+window.addEventListener('resize',()=>requestAnimationFrame(syncFixedTopbar));
+
 function switchScreen(target){
   document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.dataset.screen===target));
-  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.target===target));
-  const titles={home:'Главная',actions:'Действия',career:'Карьера',assets:'Имущество',profile:'Профиль'};
-  document.getElementById('screenTitle').textContent=titles[target];window.scrollTo({top:0,behavior:'smooth'});haptic();
+  const navTarget=['housing','inventory','investments'].includes(target)?'home':target;
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.target===navTarget));
+  const titles={home:'Главная',actions:'Действия',career:'Карьера',housing:'Жильё',inventory:'Предметы',investments:'Активы',business:'Бизнес',profile:'Профиль'};
+  document.getElementById('screenTitle').textContent=titles[target]||'Игра';requestAnimationFrame(syncFixedTopbar);window.scrollTo({top:0,behavior:'smooth'});haptic();
 }
 
 function initCategoryScroller(){
@@ -1857,3 +2046,460 @@ const initialCritical=syncCriticalStates();
 renderAll();
 if(state.gameOver) showDeathScreen();
 else if(initialCritical.length) showCriticalWarning(initialCritical);
+
+
+// ========================= v2.0 systems =========================
+function difficultyCfg(){return difficultyModes[state.difficulty]||difficultyModes.normal;}
+function v2DeathLimit(){return difficultyCfg().deathHours;}
+function scaledCost(value){return Math.max(0,Math.round((Number(value)||0)*difficultyCfg().cost));}
+function v2ClampSkill(v){return Math.max(0,Math.min(100,Number(v)||0));}
+
+function freshState(){
+  const s=JSON.parse(JSON.stringify(defaultState));
+  s.playerName=tg?.initDataUnsafe?.user?.first_name||defaultState.playerName;
+  charactersV2.forEach(c=>s.relations[c.id]=0);
+  return s;
+}
+function loadState(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+    const base=freshState();
+    const merged={...base,...saved};
+    merged.assets={...base.assets,...(saved.assets||{})};
+    merged.inventory={...base.inventory,...(saved.inventory||{})};
+    merged.businesses={...base.businesses,...(saved.businesses||{})};
+    merged.relations={...base.relations,...(saved.relations||{})};
+    merged.characterVisits={...base.characterVisits,...(saved.characterVisits||{})};
+    merged.jobLevels={...base.jobLevels,...(saved.jobLevels||{})};
+    merged.stories={...base.stories,...(saved.stories||{})};
+    merged.pendingStories=Array.isArray(saved.pendingStories)?saved.pendingStories:[];
+    merged.endings=Array.isArray(saved.endings)?saved.endings:[];
+    merged.criticalHours={...base.criticalHours,...(saved.criticalHours||{})};
+    merged.criticalActive={...base.criticalActive,...(saved.criticalActive||{})};
+    return merged;
+  }catch{return freshState();}
+}
+function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
+
+function chooseDifficulty(){
+  openModal('🎮','Новая игра v2.0','Выберите сложность. Изменить её во время прохождения нельзя.',[
+    {text:'Лёгкая — больше доходов и 36 часов до смерти',onClick:()=>setDifficulty('easy')},
+    {text:'Нормальная — рекомендуемый баланс',onClick:()=>setDifficulty('normal')},
+    {text:'Сложная — меньше доходы и опаснее события',onClick:()=>setDifficulty('hard')},
+    {text:'Выживание — максимально жёсткая экономика',onClick:()=>setDifficulty('survival')}
+  ],{locked:true});
+}
+function setDifficulty(id){
+  state.difficulty=id;state.difficultyChosen=true;saveState();closeModal(true);renderAll();
+  const legacy=localStorage.getItem(LEGACY_STORAGE_KEY);
+  if(legacy){
+    openModal('📦','Найдено сохранение v1.22','Можно перенести деньги, показатели, жильё и активы. Карьеры v2.0 начнутся заново.',[
+      {text:'Перенести основу',onClick:importLegacyProgress},
+      {text:'Начать полностью заново',onClick:()=>{closeModal(true);showToast('Начата новая игра v2.0')}}
+    ]);
+  }else showToast(`Сложность: ${difficultyCfg().name}`);
+}
+function importLegacyProgress(){
+  try{
+    const old=JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY)||'{}');
+    ['rubles','dollars','exchangeRate','previousExchangeRate','health','hunger','happiness','education','reputation','connections','popularity','influence','day','hour','homeId','totalEarned','totalDollarEarned','totalSpent','actionsDone','daysSurvived'].forEach(k=>{if(old[k]!==undefined)state[k]=old[k]});
+    state.assets={...(old.assets||{})};
+    saveState();closeModal(true);renderAll();showToast('Основной прогресс v1.22 перенесён');
+  }catch{showToast('Не удалось перенести сохранение');}
+}
+function restartGame(){localStorage.removeItem(STORAGE_KEY);state=freshState();closeModal(true);renderAll();setTimeout(chooseDifficulty,30);}
+
+function requirementMet(req={}){
+  if(req.health&&state.health<req.health)return false;
+  if(req.education&&state.education<req.education)return false;
+  if(req.reputation&&state.reputation<req.reputation)return false;
+  if(req.connections&&state.connections<req.connections)return false;
+  if(req.popularity&&state.popularity<req.popularity)return false;
+  if(req.influence&&state.influence<req.influence)return false;
+  if(req.strength&&state.strength<req.strength)return false;
+  if(req.intelligence&&state.intelligence<req.intelligence)return false;
+  if(req.charisma&&state.charisma<req.charisma)return false;
+  if(req.entrepreneurship&&state.entrepreneurship<req.entrepreneurship)return false;
+  if(req.politicsSkill&&state.politicsSkill<req.politicsSkill)return false;
+  if(req.luck&&state.luck<req.luck)return false;
+  if(req.chapter!==undefined&&state.chapterIndex<req.chapter)return false;
+  if(req.item&&!state.inventory?.[req.item])return false;
+  if(req.rubles&&state.rubles<req.rubles)return false;
+  if(req.dollars&&state.dollars<req.dollars)return false;
+  if(req.career!==undefined&&state.careerIndex<req.career)return false;
+  return true;
+}
+function requirementText(req={}){
+  const out=[];
+  const labels={health:'здоровье',education:'образование',reputation:'репутация',connections:'связи',popularity:'популярность',influence:'влияние',strength:'сила',intelligence:'интеллект',charisma:'харизма',entrepreneurship:'предпринимательство',politicsSkill:'политика',luck:'удача'};
+  Object.keys(labels).forEach(k=>{if(req[k])out.push(`${labels[k]} ${req[k]}`)});
+  if(req.chapter!==undefined)out.push(`глава: ${chaptersV2[req.chapter]?.name||req.chapter}`);
+  if(req.item)out.push(`предмет: ${itemCatalog.find(x=>x.id===req.item)?.name||req.item}`);
+  if(req.rubles)out.push(`${fmt(req.rubles)} ₽`);if(req.dollars)out.push(`$${fmt(req.dollars)}`);
+  if(req.career!==undefined)out.push(`карьера: ${careers[req.career].name}`);
+  return out.join(', ');
+}
+
+function recalcChapter(){
+  let next=state.chapterIndex;
+  while(next+1<chaptersV2.length&&chaptersV2[next+1].check(state)) next++;
+  if(next>state.chapterIndex){state.chapterIndex=next;showToast(`Новая глава: ${chaptersV2[next].name}`);}
+}
+function skillGainForAction(a){
+  const gain={};const base=Math.max(.5,Math.min(3,(a.hours||1)/3));
+  const physical=['bottles','flyers','car_wash','loader','cleaner','courier','taxi'];
+  const smart=['office','tutor','online_contract','foreign_contract'];
+  if(a.cat==='work')gain[physical.includes(a.id)?'strength':smart.includes(a.id)?'intelligence':'charisma']=base;
+  if(a.cat==='education')gain.intelligence=base*1.35;
+  if(a.cat==='media')gain.charisma=base*1.2;
+  if(a.cat==='politics'){gain.politicsSkill=base*1.25;gain.charisma=(gain.charisma||0)+base*.35;}
+  if(a.id==='beg')gain.charisma=base;
+  return gain;
+}
+function applySkillGains(gains={}){Object.entries(gains).forEach(([k,v])=>state[k]=v2ClampSkill((state[k]||0)+v));}
+function relevantSkillForAction(a){
+  if(a.cat==='education')return state.intelligence;
+  if(a.cat==='media')return state.charisma;
+  if(a.cat==='politics')return state.politicsSkill;
+  if(a.cat==='work')return skillGainForAction(a).intelligence?state.intelligence:skillGainForAction(a).charisma?state.charisma:state.strength;
+  return 0;
+}
+function effectiveActionHours(a){return Math.max(1,(a.hours||1)-(state.inventory?.car&&a.hours>=4&&a.cat!=='education'?1:0));}
+function actionAvailability(a){
+  if(!requirementMet(a.req))return{disabled:true,reason:`Нужно: ${requirementText(a.req)}`};
+  if(a.id==='job_shift'&&!state.currentJob)return{disabled:true,reason:'Сначала устройтесь на работу во вкладке «Карьера»'};
+  if(a.id==='election'&&state.president)return{disabled:true,reason:'Вы уже президент'};
+  if(a.id==='election'&&state.chapterIndex<6)return{disabled:true,reason:'Сначала откройте главу «Кандидат в президенты»'};
+  if(a.id==='election'&&state.day<state.electionBanUntil)return{disabled:true,reason:`Санкции действуют до ${state.electionBanUntil}-го дня`};
+  const cost=scaledCost(a.cost||0);if(cost&&state.rubles<cost)return{disabled:true,reason:'Не хватает рублей'};
+  return{disabled:false,reason:''};
+}
+function actionMoney(a){
+  if(a.id==='job_shift'&&state.currentJob)return`+${fmt(Math.round(state.currentJob.salary*difficultyCfg().income))} ₽`;
+  if(a.max){const mult=difficultyCfg().income;return`+${a.currency==='USD'?'$':''}${fmt(Math.round(a.min*mult))}–${a.currency==='USD'?'$':''}${fmt(Math.round(a.max*mult))}${a.currency==='USD'?'':' ₽'}`;}
+  if(a.cost)return`−${fmt(scaledCost(a.cost))} ₽`;
+  return'Бесплатно';
+}
+
+function calculateReward(a){
+  let reward=random(a.min||0,a.max||0)*difficultyCfg().income;
+  reward*=1+Math.min(.45,relevantSkillForAction(a)*.0045);
+  if(state.inventory?.backpack&&['bottles','flyers'].includes(a.id))reward*=1.15;
+  if(state.inventory?.bike&&a.id==='courier')reward*=1.30;
+  if(state.inventory?.laptop&&a.currency==='USD')reward*=1.25;
+  return Math.max(0,Math.round(reward));
+}
+function adjustedDelta(a,key){
+  let delta=Number(a[key])||0;
+  if(delta<0)delta*=difficultyCfg().decay;
+  if(a.cat==='work'&&key==='health'&&delta<0)delta*=Math.max(.68,1-state.strength*.0035);
+  if(a.cat==='media'&&key==='popularity'&&delta>0&&state.inventory?.phone)delta*=1.20;
+  return delta<0?Math.ceil(delta):Math.round(delta);
+}
+function performAction(id){
+  if(state.gameOver){showDeathScreen();return;}
+  const a=actions.find(x=>x.id===id);if(!a)return;
+  const availability=actionAvailability(a);if(availability.disabled){showToast(availability.reason);return;}
+  if(a.custom){performCustom(a);return;}
+  const cost=scaledCost(a.cost||0);if(cost)spend(cost);
+  const reward=a.max?calculateReward(a):0;
+  if(reward){if(a.currency==='USD')earnDollars(reward);else earn(reward);}
+  ['hunger','health','happiness','education','reputation','connections','popularity','influence'].forEach(k=>addValue(k,adjustedDelta(a,k)));
+  const gains=skillGainForAction(a);applySkillGains(gains);
+  advanceTime(effectiveActionHours(a));if(state.gameOver)return;
+  state.actionsDone++;recalcCareer();recalcChapter();checkEndingsV2();saveState();renderAll();haptic();
+  if(a.cat==='work'&&Math.random()<.22*difficultyCfg().eventRisk)setTimeout(()=>{if(document.getElementById('modalBackdrop').classList.contains('hidden'))triggerWorkEventV2();},220);
+  showToast(reward?`${a.name}: +${a.currency==='USD'?'$':''}${fmt(reward)}${a.currency==='USD'?'':' ₽'}`:`${a.name}${Object.keys(gains).length?' · навык повышен':''}`);
+}
+function performCustom(a){
+  if(a.id==='job_shift'){performJobShift();return;}
+  const cost=scaledCost(a.cost||0);if(cost&&state.rubles<cost){showToast('Недостаточно рублей');return;}
+  if(a.id==='debate'){
+    spend(cost);['hunger','health','happiness'].forEach(k=>addValue(k,adjustedDelta(a,k)));
+    const score=state.education+state.reputation+state.charisma*.45+state.politicsSkill*.55+random(-25,25);
+    if(score>120){state.popularity=clamp(state.popularity+16);state.influence=clamp(state.influence+9);state.politicsSkill=v2ClampSkill(state.politicsSkill+2);showToast('Вы блестяще выиграли дебаты');}
+    else{state.popularity=clamp(state.popularity-5);state.happiness=clamp(state.happiness-9);showToast('Дебаты прошли неудачно');}
+    advanceTime(effectiveActionHours(a));
+  }
+  if(a.id==='election'){
+    if(state.chapterIndex<6){showToast('Сначала откройте главу кандидата');return;}
+    if(state.day<state.electionBanUntil){showToast(`Повторные выборы доступны с ${state.electionBanUntil}-го дня`);return;}
+    spend(cost);['hunger','health','happiness'].forEach(k=>addValue(k,adjustedDelta(a,k)));
+    suppressRandomEvent=true;advanceTime(effectiveActionHours(a));suppressRandomEvent=false;if(state.gameOver)return;startElectionCampaign();
+  }
+  if(state.gameOver)return;state.actionsDone++;recalcCareer();recalcChapter();saveState();renderAll();haptic('medium');
+}
+
+function performJobShift(){
+  const job=state.currentJob;if(!job){showToast('Сначала устройтесь на работу');return;}
+  const branch=careerBranchesV2[job.branch];const skill=state[branch.skill]||0;
+  let pay=job.salary*difficultyCfg().income*(1+Math.min(.45,skill*.005));
+  if(job.branch==='office'&&state.inventory?.suit)pay*=1.08;
+  if(job.branch==='it'&&state.inventory?.laptop)pay*=1.12;
+  pay=Math.round(pay*random(92,108)/100);earn(pay);
+  const level=job.level;addValue('health',Math.ceil((-2-level*1.3)*difficultyCfg().decay));addValue('hunger',Math.ceil((-9-level*2)*difficultyCfg().decay));addValue('happiness',Math.ceil((-4-level)*difficultyCfg().decay));
+  state.jobExperience+=2+level;state[branch.skill]=v2ClampSkill(state[branch.skill]+1+level*.25);
+  advanceTime(state.inventory?.car?7:8);if(state.gameOver)return;
+  state.actionsDone++;recalcChapter();saveState();renderAll();showToast(`Смена завершена: +${fmt(pay)} ₽`);
+  if(Math.random()<.28*difficultyCfg().eventRisk)setTimeout(triggerWorkEventV2,180);
+  if(state.jobWarnings>=3){const lost=state.currentJob.name;state.currentJob=null;state.jobWarnings=0;state.jobExperience=0;openModal('📉','Увольнение',`После трёх предупреждений вы потеряли работу «${lost}».`,[]);}
+}
+function triggerWorkEventV2(){
+  if(!state.currentJob||state.gameOver)return;const ev=workEventsV2[random(0,workEventsV2.length-1)];
+  openModal('💼',ev.title,ev.text,ev.choices.map(c=>({text:c.text,onClick:()=>{const result=c.run();state.luck=v2ClampSkill(state.luck+.2);saveState();renderAll();openModal('📋','Итог рабочей ситуации',result,[]);}})));
+}
+
+function interviewJob(branchId,level){
+  if(state.gameOver)return;const branch=careerBranchesV2[branchId],job=branch?.jobs[level-1];if(!job)return;
+  if(!requirementMet(job.req)){showToast(`Нужно: ${requirementText(job.req)}`);return;}
+  const relation=(state.relations.sergey||0)*.12+(state.relations.irina||0)*.08;
+  const skill=state[branch.skill]||0;let probability=48+difficultyCfg().interview+skill*.45+state.charisma*.22+state.reputation*.18+relation;
+  if(state.inventory?.suit)probability+=15;if((state.jobLevels[branchId]||0)>=level-1)probability+=7;
+  probability=Math.max(12,Math.min(92,probability));
+  advanceTime(state.inventory?.car?2:3);if(state.gameOver)return;
+  if(Math.random()*100<probability){state.currentJob={branch:branchId,level,name:job.name,salary:job.salary};state.jobLevels[branchId]=Math.max(state.jobLevels[branchId]||0,level);state.jobExperience=0;state.jobWarnings=0;state.connections=clamp(state.connections+1);showToast(`Вы приняты: ${job.name}`);}
+  else{state.happiness=clamp(state.happiness-5);showToast(`Отказ на собеседовании (${Math.round(probability)}% шанс)`);}
+  recalcChapter();saveState();renderAll();
+}
+
+function buyItemV2(id){
+  const item=itemCatalog.find(x=>x.id===id);if(!item)return;
+  if(item.consumable&&state.inventory[id]){state.health=clamp(state.health+25);state.inventory[id]--;saveState();renderAll();showToast('Аптечка использована: здоровье +25');return;}
+  const price=scaledCost(item.price);if(state.rubles<price){showToast('Недостаточно рублей');return;}
+  spend(price);state.inventory[id]=(state.inventory[id]||0)+1;state.reputation=clamp(state.reputation+1);saveState();renderAll();showToast(`${item.name} приобретён`);
+}
+
+function buyBusinessV2(id){
+  const b=businessCatalogV2.find(x=>x.id===id);if(!b)return;if(state.businesses[id])return;
+  if(!requirementMet(b.req)){showToast(`Нужно: ${requirementText(b.req)}`);return;}
+  const price=scaledCost(b.price);if(state.rubles<price){showToast('Недостаточно рублей');return;}
+  spend(price);state.businesses[id]={level:1,lastProfit:0};state.entrepreneurship=v2ClampSkill(state.entrepreneurship+4);state.connections=clamp(state.connections+2);recalcChapter();saveState();renderAll();showToast(`Куплен бизнес: ${b.name}`);
+}
+function upgradeBusinessV2(id){
+  const b=businessCatalogV2.find(x=>x.id===id),owned=state.businesses[id];if(!b||!owned)return;normalizeBusinessV2(owned);
+  if(owned.level>=5){showToast('Максимальный уровень бизнеса');return;}
+  const cost=businessUpgradeCostV2(b,owned);
+  if(state.rubles<cost){showToast(`Нужно ${fmt(cost)} ₽`);return;}
+  spend(cost);owned.level++;state.entrepreneurship=v2ClampSkill(state.entrepreneurship+1.5);saveState();renderAll();showToast(`${b.name} улучшен до уровня ${owned.level}`);
+}
+function processBusinessesV2(){
+  let total=0;
+  Object.entries(state.businesses||{}).forEach(([id,raw])=>{
+    const b=businessCatalogV2.find(x=>x.id===id);if(!b)return;
+    const income=businessIncomeV2(b,raw);raw.lastProfit=income;total+=income;
+  });
+  if(total>0)earn(total);
+  return total;
+}
+
+function interactCharacterV2(id){
+  const c=charactersV2.find(x=>x.id===id);if(!c||state.chapterIndex<c.chapter)return;
+  if(state.characterVisits[id]===state.day){showToast('Вы уже общались сегодня');return;}
+  openModal(c.icon,c.name,c.desc,[
+    {text:'Поговорить спокойно',onClick:()=>resolveCharacterV2(c,'talk')},
+    {text:'Попросить о помощи',onClick:()=>resolveCharacterV2(c,'help')}
+  ]);
+}
+function resolveCharacterV2(c,type){
+  state.characterVisits[c.id]=state.day;advanceTime(state.inventory?.car?1:2);if(state.gameOver)return;
+  let result='';const rel=state.relations[c.id]||0;const success=Math.random()<Math.min(.88,.48+state.charisma/250+state.luck/500+Math.max(0,rel)/300);
+  if(type==='talk'){
+    state.relations[c.id]=clamp(rel+(success?6:2),-100,100);state.charisma=v2ClampSkill(state.charisma+.8);result=success?'Разговор прошёл отлично. Отношения улучшились.':'Разговор был коротким, но без конфликта.';
+  }else if(success){
+    state.relations[c.id]=clamp(rel+3,-100,100);const effects={misha:()=>earn(2500),anna:()=>addValue('health',12),sergey:()=>state.jobExperience+=5,irina:()=>{state.education=clamp(state.education+5);state.intelligence=v2ClampSkill(state.intelligence+2)},oleg:()=>earn(25000),marina:()=>state.popularity=clamp(state.popularity+6),viktor:()=>state.influence=clamp(state.influence+5),roman:()=>state.reputation=clamp(state.reputation+3)};effects[c.id]?.();result='Персонаж согласился помочь.';
+  }else{state.relations[c.id]=clamp(rel-5,-100,100);state.happiness=clamp(state.happiness-3);result='Просьба показалась неуместной. Отношения ухудшились.';}
+  saveState();renderAll();openModal(c.icon,'Результат встречи',result,[]);
+}
+
+function scheduleStoryV2(id,days,data={}){state.pendingStories.push({id,due:state.day+days,data});}
+function triggerDueStoryV2(){
+  const i=state.pendingStories.findIndex(x=>x.due<=state.day);if(i<0)return false;const story=state.pendingStories.splice(i,1)[0];
+  const handlers={
+    misha_return:()=>openModal('🧔‍♂️','Миша вернулся','Знакомый с улицы нашёл подработку и хочет вернуть долг.',[
+      {text:'Принять 8 000 ₽',onClick:()=>{earn(8000);state.relations.misha=clamp((state.relations.misha||0)+8,-100,100);closeModal();renderAll();}},
+      {text:'Пусть оставит себе',onClick:()=>{state.reputation=clamp(state.reputation+6);state.relations.misha=clamp((state.relations.misha||0)+15,-100,100);closeModal();renderAll();}}
+    ]),
+    journalist_article:()=>openModal('📰','Статья о вашем пути','Марина опубликовала материал. Заголовок может поднять вас или вызвать скандал.',[
+      {text:'Поддержать публикацию',onClick:()=>{if(Math.random()<.65){state.popularity=clamp(state.popularity+12);state.reputation=clamp(state.reputation+5);}else{state.reputation=clamp(state.reputation-8);}closeModal();renderAll();}},
+      {text:'Дистанцироваться',onClick:()=>{state.popularity=clamp(state.popularity-2);state.reputation=clamp(state.reputation+2);closeModal();renderAll();}}
+    ]),
+    investor_result:()=>openModal('💼','Результат партнёрства','Олег вернулся с результатами совместного проекта.',[
+      {text:'Забрать прибыль',onClick:()=>{if(Math.random()<.58+state.entrepreneurship/300)earn(120000);else state.rubles=Math.max(0,state.rubles-60000);state.entrepreneurship=v2ClampSkill(state.entrepreneurship+3);closeModal();renderAll();}},
+      {text:'Оставить деньги в проекте',onClick:()=>{state.connections=clamp(state.connections+7);state.relations.oleg=clamp((state.relations.oleg||0)+10,-100,100);closeModal();renderAll();}}
+    ]),
+    mentor_exam:()=>openModal('🎓','Экзамен наставника','Ирина предлагает сложный экзамен, который может ускорить карьеру.',[
+      {text:'Сдать экзамен',onClick:()=>{if(Math.random()<.45+state.intelligence/180){state.education=clamp(state.education+12);state.intelligence=v2ClampSkill(state.intelligence+4);}else{state.happiness=clamp(state.happiness-8);}closeModal();renderAll();}},
+      {text:'Отказаться',onClick:()=>{state.happiness=clamp(state.happiness+2);closeModal();renderAll();}}
+    ])
+  };handlers[story.id]?.();saveState();return true;
+}
+
+// Add four story starters to the original random event pool.
+events.push(
+  {id:'story_misha',icon:'🧔‍♂️',title:'Старый знакомый',text:'Миша просит 3 000 ₽, чтобы начать новую жизнь.',when:s=>!s.stories.misha,choices:[
+    {text:'Помочь',can:s=>s.rubles>=3000,effect:s=>{s.rubles-=3000;s.stories.misha='helped';scheduleStoryV2('misha_return',5);return 'Вы помогли Мише. Он обещал вернуться.'}},
+    {text:'Отказать',effect:s=>{s.stories.misha='refused';s.reputation-=2;s.relations.misha-=8;return 'Миша ушёл разочарованным.'}}
+  ]},
+  {id:'story_journalist',icon:'📰',title:'Предложение журналиста',text:'Марина хочет подготовить большую статью о вашем пути.',when:s=>s.chapterIndex>=3&&!s.stories.journalist,choices:[
+    {text:'Согласиться',effect:s=>{s.stories.journalist='yes';scheduleStoryV2('journalist_article',4);s.relations.marina+=5;return 'Интервью состоялось. Статья выйдет позже.'}},
+    {text:'Отказаться',effect:s=>{s.stories.journalist='no';s.reputation+=2;return 'Вы решили пока не раскрывать личную историю.'}}
+  ]},
+  {id:'story_investor_v2',icon:'🤝',title:'Партнёрство с Олегом',text:'Олег предлагает вложить 60 000 ₽ в совместный проект.',when:s=>s.chapterIndex>=3&&!s.stories.oleg&&s.rubles>=60000,choices:[
+    {text:'Вложиться',effect:s=>{s.rubles-=60000;s.stories.oleg='invested';scheduleStoryV2('investor_result',6);s.relations.oleg+=5;return 'Проект запущен. Результаты будут через несколько дней.'}},
+    {text:'Отказаться',effect:s=>{s.stories.oleg='no';s.entrepreneurship+=1;return 'Вы сохранили деньги и избежали риска.'}}
+  ]},
+  {id:'story_teacher',icon:'👩‍🏫',title:'Наставник',text:'Ирина предлагает бесплатно готовить вас к сложному экзамену.',when:s=>s.chapterIndex>=1&&!s.stories.teacher,choices:[
+    {text:'Согласиться',effect:s=>{s.stories.teacher='yes';scheduleStoryV2('mentor_exam',5);s.relations.irina+=6;return 'Подготовка началась.'}},
+    {text:'Учиться самостоятельно',effect:s=>{s.stories.teacher='no';s.intelligence+=2;return 'Вы выбрали самостоятельный путь.'}}
+  ]}
+);
+
+function advanceCriticalTimers(hours){
+  if(state.gameOver||hours<=0)return;const limit=v2DeathLimit();
+  for(const key of Object.keys(fatalStats)){if(state.criticalActive[key]&&state[key]<=0){state.criticalHours[key]=Math.min(limit,(Number(state.criticalHours[key])||0)+hours);if(state.criticalHours[key]>=limit){endGame(key);return;}}}
+}
+function criticalWarningText(keys){const names=keys.map(k=>fatalStats[k].name).join(', ');return`Показатель «${names}» достиг нуля. Если он останется на нуле ${v2DeathLimit()} игровых часа, персонаж умрёт.`;}
+function endGame(key){if(state.gameOver)return;state.gameOver=true;state.deathReason=fatalStats[key]?.reason||'тяжёлого состояния';state.deathDay=state.day;if(!state.endings.includes('death'))state.endings.push('death');saveState();renderAll();showDeathScreen();}
+
+function advanceTime(hours){
+  if(state.gameOver)return;let remaining=Math.max(0,Number(hours)||0),crossedDay=false,newCritical=syncCriticalStates();
+  while(remaining>0&&!state.gameOver){const untilMidnight=24-state.hour,step=Math.min(remaining,untilMidnight);advanceCriticalTimers(step);if(state.gameOver)return;state.hour+=step;remaining-=step;if(state.hour>=24){state.hour=0;nextDay();crossedDay=true;newCritical=[...new Set([...newCritical,...syncCriticalStates()])];}}
+  newCritical=[...new Set([...newCritical,...syncCriticalStates()])];if(state.gameOver)return;
+  if(newCritical.length){newCritical.forEach(k=>state.criticalHours[k]=0);showCriticalWarning(newCritical);}
+  else if(crossedDay&&!suppressRandomEvent){if(!triggerDueStoryV2()&&Math.random()<.43)setTimeout(()=>{if(!state.gameOver)triggerRandomEvent();},250);}
+}
+function nextDay(){
+  state.day++;state.daysSurvived=state.day;state.hunger=clamp(state.hunger-Math.round(18*difficultyCfg().decay));state.happiness=clamp(state.happiness-Math.round(3*difficultyCfg().decay));
+  const home=homes.find(x=>x.id===state.homeId)||homes[0];state.health=clamp(state.health+home.health);
+  if(home.daily){const daily=scaledCost(home.daily);if(state.rubles>=daily)spend(daily);else{state.homeId='street';showToast('Не хватило денег на жильё — вы снова живёте под мостом');}}
+  updateExchangeRate();let passive=0;for(const item of assets){const count=state.assets[item.id]||0;if(count){const factor=item.id==='stocks'?(Math.random()*.9+.55):1;passive+=Math.round(item.income*count*factor*difficultyCfg().income);}}if(passive)earn(passive);
+  processBusinessesV2();if(state.hunger<=0){state.health=clamp(state.health-Math.round(18*difficultyCfg().decay));state.happiness=clamp(state.happiness-10);}
+  if(Math.random()<.08){state.luck=v2ClampSkill(state.luck+.5)}recalcCareer();recalcChapter();checkEndingsV2();
+}
+
+function startElectionCampaign(){
+  const rivals=[{name:'богатый предприниматель',power:63},{name:'опытный губернатор',power:67},{name:'популярный блогер',power:59},{name:'независимый кандидат',power:55}];
+  const campaign={score:0,history:[],rival:rivals[random(0,rivals.length-1)]};
+  electionStagePlatformV2(campaign);
+}
+function electionStagePlatformV2(c){openModal('📜','1/6 — Программа',`Ваш главный соперник — ${c.rival.name}. Выберите основу программы.`,[
+  {text:'Социальные реформы',onClick:()=>{c.score+=state.reputation*.08+state.charisma*.05;c.history.push('социальная программа');electionStageTeamV2(c)}},
+  {text:'Экономический рост',onClick:()=>{c.score+=state.entrepreneurship*.10+state.education*.06;c.history.push('экономическая программа');electionStageTeamV2(c)}}
+]);}
+function electionStageTeamV2(c){openModal('👥','2/6 — Штаб','Кого поставить во главе кампании?',[
+  {text:'Опытный политтехнолог — 350 000 ₽',disabled:state.rubles<scaledCost(350000),onClick:()=>{spend(scaledCost(350000));c.score+=13+state.connections*.06;c.history.push('опытный штаб');electionStageSponsorsV2(c)}},
+  {text:'Команда волонтёров',onClick:()=>{c.score+=6+state.reputation*.05;c.history.push('волонтёрский штаб');electionStageSponsorsV2(c)}}
+]);}
+function electionStageSponsorsV2(c){openModal('💰','3/6 — Спонсоры','Большие деньги помогут рекламе, но могут ударить по репутации.',[
+  {text:'Взять деньги крупного бизнеса',onClick:()=>{if(Math.random()<.58+state.connections/300){c.score+=15;state.reputation=clamp(state.reputation-5);}else{c.score-=8;state.reputation=clamp(state.reputation-10);}c.history.push('спонсоры бизнеса');electionStageMediaV2(c)}},
+  {text:'Собирать небольшие пожертвования',onClick:()=>{c.score+=8+state.popularity*.07;state.reputation=clamp(state.reputation+3);c.history.push('народное финансирование');electionStageMediaV2(c)}}
+]);}
+function electionStageMediaV2(c){openModal('📺','4/6 — Медиа','Как провести основную рекламную волну?',[
+  {text:'Позитивная кампания',onClick:()=>{c.score+=state.charisma*.10+state.reputation*.08+(state.inventory?.phone?5:0);c.history.push('позитивная реклама');electionStageDebateV2(c)}},
+  {text:'Атаковать соперника',onClick:()=>{if(Math.random()<.42+state.politicsSkill/220+state.luck/500)c.score+=18;else{c.score-=13;state.reputation=clamp(state.reputation-10);}c.history.push('жёсткая реклама');electionStageDebateV2(c)}}
+]);}
+function electionStageDebateV2(c){openModal('🎤','5/6 — Дебаты','Финальные теледебаты смотрит вся страна.',[
+  {text:'Говорить фактами',onClick:()=>{c.score+=state.education*.07+state.intelligence*.11+state.politicsSkill*.07;c.history.push('дебаты на фактах');electionStageVoteV2(c)}},
+  {text:'Давить харизмой',onClick:()=>{c.score+=state.charisma*.13+state.popularity*.07+(state.inventory?.suit?6:0);c.history.push('харизматичные дебаты');electionStageVoteV2(c)}}
+]);}
+function electionStageVoteV2(c){openModal('🗳️','6/6 — Голосование','Последний выбор штаба.',[
+  {text:'Мобилизовать сторонников',onClick:()=>{c.score+=state.connections*.08+state.influence*.10+Math.max(0,state.relations.viktor||0)*.05;finishElectionV2(c)}},
+  {text:'Убедить сомневающихся',onClick:()=>{c.score+=state.popularity*.10+state.reputation*.08+state.charisma*.06;finishElectionV2(c)}}
+]);}
+function finishElectionV2(c){
+  const core=state.popularity*.22+state.reputation*.16+state.influence*.20+state.connections*.12+state.politicsSkill*.15+state.charisma*.08+state.luck*.04;
+  const rival=c.rival.power+random(-8,8)*difficultyCfg().eventRisk;const total=core+c.score+(state.inventory?.suit?4:0)+Math.max(0,state.relations.marina||0)*.03;
+  const voteShare=clamp(Math.round(50+(total-rival)*.42),18,78);
+  if(voteShare>=50){state.president=true;state.careerIndex=9;state.chapterIndex=7;state.influence=100;state.reputation=clamp(state.reputation+10);if(!state.endings.includes('president'))state.endings.push('president');saveState();renderAll();openModal('⭐',`Победа — ${voteShare}%`,`Вы победили соперника и стали президентом. Стратегия: ${c.history.join(', ')}.`,[]);}
+  else{applyElectionSanction(voteShare,c);}
+}
+function finishElection(c){finishElectionV2(c);}
+
+function checkEndingsV2(){
+  const unlock=id=>{if(!state.endings.includes(id)){state.endings.push(id);return true}return false};
+  if(state.homeId!=='street'&&state.currentJob&&state.rubles>=250000)unlock('stable');
+  if(state.education>=80&&state.intelligence>=60&&state.currentJob?.branch==='it')unlock('specialist');
+  if(Object.keys(state.businesses||{}).length>=4&&state.entrepreneurship>=60)unlock('tycoon');
+  if(state.currentJob?.branch==='media'&&state.currentJob.level>=4&&state.popularity>=75)unlock('media');
+  if(state.currentJob?.branch==='politics'&&state.currentJob.level>=4)unlock('governor');
+  if(state.day>=100)unlock('survivor');if(state.president)unlock('president');
+}
+
+function normalize(){
+  ['health','hunger','happiness','education','reputation','connections','popularity','influence'].forEach(k=>state[k]=clamp(state[k]));
+  ['strength','intelligence','charisma','entrepreneurship','politicsSkill','luck'].forEach(k=>state[k]=v2ClampSkill(state[k]));
+  state.rubles=Math.max(0,Number(state.rubles)||0);state.dollars=Math.max(0,Number(state.dollars)||0);state.chapterIndex=Math.max(0,Math.min(7,Number(state.chapterIndex)||0));
+  state.inventory=state.inventory||{};state.businesses=state.businesses||{};Object.values(state.businesses).forEach(normalizeBusinessV2);state.relations=state.relations||{};charactersV2.forEach(c=>{if(state.relations[c.id]===undefined)state.relations[c.id]=0});
+  state.characterVisits=state.characterVisits||{};state.jobLevels=state.jobLevels||{};state.pendingStories=Array.isArray(state.pendingStories)?state.pendingStories:[];state.endings=Array.isArray(state.endings)?state.endings:[];
+  state.criticalHours={...defaultState.criticalHours,...(state.criticalHours||{})};state.criticalActive={...defaultState.criticalActive,...(state.criticalActive||{})};
+  Object.keys(fatalStats).forEach(k=>state.criticalHours[k]=Math.max(0,Math.min(v2DeathLimit(),Number(state.criticalHours[k])||0)));
+  state.exchangeRate=clampRate(Number(state.exchangeRate)||92);state.previousExchangeRate=clampRate(Number(state.previousExchangeRate)||state.exchangeRate);state.exchangeRateBias=Math.max(-2,Math.min(2,Number(state.exchangeRateBias)||0));
+  recalcCareer();recalcChapter();checkEndingsV2();
+}
+
+function renderAll(){normalize();renderHeader();renderHome();renderActions();renderCareer();renderAssets();renderProfile();saveState();}
+function rankData(){const c=chaptersV2[state.chapterIndex];if(state.president)return{avatar:'🤵',badge:'Президент',title:'Глава государства',text:'Бывший бомж теперь управляет всей страной.'};return{avatar:c.icon,badge:c.name,title:c.name,text:c.goal};}
+function renderHome(){
+  const r=rankData();['avatar','profileAvatar'].forEach(id=>document.getElementById(id).textContent=r.avatar);document.getElementById('rankBadge').textContent=r.badge;document.getElementById('statusTitle').textContent=r.title;document.getElementById('statusText').textContent=r.text;
+  document.getElementById('rublesValue').textContent=`${fmt(state.rubles)} ₽`;document.getElementById('dollarsValue').innerHTML=`${fmt(state.dollars)} <i class="dollar-symbol">$</i>`;
+  const trend=exchangeTrend(),rateEl=document.getElementById('exchangeRateValue');if(rateEl){rateEl.textContent=`${state.exchangeRate.toFixed(2)} ₽ ${trend==='up'?'▲':trend==='down'?'▼':'•'}`;rateEl.className=`rate-line ${trend}`;}
+  const homeRate=document.getElementById('homeExchangeRate');if(homeRate){homeRate.textContent=`Купить ${buyUsdRate().toFixed(2)} ₽ · продать ${sellUsdRate().toFixed(2)} ₽ ${trend==='up'?'▲':trend==='down'?'▼':'•'}`;homeRate.className=`exchange-home-rate ${trend}`;}
+  const stats=[['❤️','Здоровье','health'],['🍗','Сытость','hunger'],['😊','Счастье','happiness']];document.getElementById('statsList').innerHTML=stats.map(([i,n,k])=>`<div class="stat-row"><div class="stat-icon">${i}</div><div><div class="stat-name">${n}</div><div class="progress"><div class="progress-fill ${state[k]<25?'bad':state[k]>75?'good':''}" style="width:${state[k]}%"></div></div></div><div class="stat-value">${Math.round(state[k])}</div></div>`).join('');
+  const hubHome=homes.find(h=>h.id===state.homeId)||homes[0],hubItemCount=Object.values(state.inventory||{}).reduce((sum,count)=>sum+(Number(count)||0),0),hubAssetCount=Object.values(state.assets||{}).reduce((sum,count)=>sum+(Number(count)||0),0);
+  const hubHomeEl=document.getElementById('homeHubValue');if(hubHomeEl)hubHomeEl.textContent=hubHome.name;
+  const hubItemsEl=document.getElementById('inventoryHubValue');if(hubItemsEl)hubItemsEl.textContent=hubItemCount?`Куплено: ${hubItemCount}`:'Нет предметов';
+  const hubAssetsEl=document.getElementById('assetsHubValue');if(hubAssetsEl)hubAssetsEl.textContent=hubAssetCount?`Куплено: ${hubAssetCount}`:'Нет активов';
+  const current=chaptersV2[state.chapterIndex],next=chaptersV2[Math.min(state.chapterIndex+1,7)];document.getElementById('goalTitle').textContent=state.chapterIndex===7?'Путь завершён':next.name;document.getElementById('goalText').textContent=state.chapterIndex===7?'Вы стали президентом. Открывайте другие достижения.':current.goal;const percent=Math.round(state.chapterIndex/7*100);document.getElementById('goalPercent').textContent=`${percent}%`;document.getElementById('goalBar').style.width=`${percent}%`;
+  let banner=document.getElementById('chapterBannerV2');if(!banner){banner=document.createElement('div');banner.id='chapterBannerV2';banner.className='chapter-banner';document.querySelector('[data-screen="home"] .hero-card').after(banner);}banner.innerHTML=`<div class="chapter-banner-head"><h3>${current.icon} Глава: ${current.name}</h3><span class="chapter-number">${state.chapterIndex+1}/8</span></div><p>${current.goal} · Сложность: ${difficultyCfg().name}</p>`;
+}
+function renderActions(){
+  document.getElementById('categoryRow').innerHTML=categories.map(([id,icon,name])=>`<button class="category-chip ${selectedCategory===id?'active':''}" data-category="${id}">${icon} ${name}</button>`).join('');
+  const skillLabels={strength:'💪 Сила',intelligence:'🧠 Интеллект',charisma:'🗣 Харизма',politicsSkill:'🏛 Политика'};
+  document.getElementById('actionsList').innerHTML=actions.filter(a=>a.cat===selectedCategory).map(a=>{const av=actionAvailability(a),effects=[];effects.push(`🕒 ${effectiveActionHours(a)} ч.`);const labels={hunger:'🍗',health:'❤️',happiness:'😊',education:'🎓',reputation:'⭐',connections:'🤝',popularity:'📣',influence:'🏛️'};Object.keys(labels).forEach(k=>{const d=adjustedDelta(a,k);if(d)effects.push(`${labels[k]} ${d>0?'+':''}${d}`)});const gains=skillGainForAction(a);Object.entries(gains).forEach(([k,v])=>effects.push(`${skillLabels[k]||k} +${Math.round(v*10)/10}`));return`<article class="action-card action-card-clickable ${av.disabled?'unavailable':''}" data-action="${a.id}" role="button" tabindex="0"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${a.icon}</div><div><div class="card-title">${a.name}</div><div class="card-subtitle">${av.disabled?av.reason:a.desc}</div></div></div><div class="reward ${a.max||a.id==='job_shift'?'positive':a.cost?'negative':''}">${actionMoney(a)}</div></div><div class="effects">${effects.map(x=>`<span class="effect">${x}</span>`).join('')}</div></article>`;}).join('');
+}
+function renderCareer(){
+  const chapter=chaptersV2[state.chapterIndex];document.getElementById('careerTitle').textContent=chapter.name;document.getElementById('careerText').textContent=chapter.goal;document.getElementById('careerIcon').textContent=chapter.icon;
+  document.getElementById('careerTimeline').innerHTML=chaptersV2.map((x,i)=>`<article class="career-step ${i<state.chapterIndex?'done':i===state.chapterIndex?'current':''}"><div class="step-head"><div class="step-index">${i+1}</div><div class="step-name">${x.icon} ${x.name}</div><div class="step-state">${i<state.chapterIndex?'ПРОЙДЕНО':i===state.chapterIndex?'СЕЙЧАС':'ЗАКРЫТО'}</div></div><p class="step-requirements">${x.goal}</p></article>`).join('');
+  const job=state.currentJob;document.getElementById('currentJobLabel').textContent=job?.name||'Без работы';document.getElementById('currentJobCard').innerHTML=job?`<article class="buy-card"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${careerBranchesV2[job.branch].icon}</div><div><div class="card-title">${job.name}</div><div class="card-subtitle">Опыт ${state.jobExperience} · предупреждения ${state.jobWarnings}/3</div></div></div><div class="reward positive">${fmt(Math.round(job.salary*difficultyCfg().income))} ₽</div></div><div class="job-meta"><span>Смена 8 часов</span><span>${careerBranchesV2[job.branch].name}</span></div></article>`:`<p class="muted small">Выберите направление и пройдите собеседование.</p>`;
+  document.getElementById('branchTabs').innerHTML=Object.entries(careerBranchesV2).map(([id,b])=>`<button class="category-chip ${state.selectedBranch===id?'active':''}" data-branch="${id}">${b.icon} ${b.name}</button>`).join('');
+  const branch=careerBranchesV2[state.selectedBranch]||careerBranchesV2.labor;document.getElementById('jobList').innerHTML=branch.jobs.map((j,i)=>{const level=i+1,av=requirementMet(j.req),current=job?.branch===state.selectedBranch&&job.level===level;return`<article class="buy-card ${!av?'unavailable':''}"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${branch.icon}</div><div><div class="card-title">${j.name}</div><div class="card-subtitle">${av?'Шанс зависит от навыков, репутации и одежды.':'Нужно: '+requirementText(j.req)}</div></div></div><div class="price">${fmt(j.salary)} ₽</div></div><button class="buy-button" data-interview="${state.selectedBranch}:${level}" ${!av||current?'disabled':''}>${current?'Текущая работа':'Пройти собеседование'}</button></article>`}).join('');
+}
+function renderAssets(){
+  const current=homes.find(x=>x.id===state.homeId)||homes[0];document.getElementById('homeLabel').textContent=current.name;document.getElementById('housingList').innerHTML=homes.map(h=>`<article class="buy-card"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${h.icon}</div><div><div class="card-title">${h.name}</div><div class="card-subtitle">${h.desc}<br>Расход в день: ${fmt(scaledCost(h.daily))} ₽</div></div></div><div class="price">${h.price?fmt(scaledCost(h.price))+' ₽':'Бесплатно'}</div></div>${h.id==='street'?'':`<button class="buy-button" data-home="${h.id}" ${state.homeId===h.id?'disabled':''}>${state.homeId===h.id?'Вы живёте здесь':'Купить'}</button>`}</article>`).join('');
+  document.getElementById('assetList').innerHTML=assets.map(a=>{const count=state.assets[a.id]||0,locked=a.req&&!requirementMet(a.req);return`<article class="buy-card"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${a.icon}</div><div><div class="card-title">${a.name} ${count?`×${count}`:''}</div><div class="card-subtitle">${locked?'Нужно: '+requirementText(a.req):a.desc}<br>Доход: около ${fmt(Math.round(a.income*difficultyCfg().income))} ₽/день</div></div></div><div class="price">${fmt(scaledCost(a.price))} ₽</div></div><button class="buy-button" data-asset="${a.id}" ${locked||state.rubles<scaledCost(a.price)?'disabled':''}>Купить</button></article>`}).join('');
+  document.getElementById('inventoryList').innerHTML=itemCatalog.map(i=>{const count=state.inventory[i.id]||0;const owned=count>0;return`<article class="buy-card"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${i.icon}</div><div><div class="card-title">${i.name}${i.consumable&&count?` ×${count}`:''}</div><div class="card-subtitle">${i.desc}</div></div></div><div class="price">${owned&&!i.consumable?'Куплено':fmt(scaledCost(i.price))+' ₽'}</div></div><button class="buy-button" data-item-v2="${i.id}" ${owned&&!i.consumable?'disabled':''}>${i.consumable&&owned?'Использовать':owned?'Куплено':'Купить'}</button></article>`}).join('');
+  let total=0;Object.entries(state.businesses||{}).forEach(([id,owned])=>{const b=businessCatalogV2.find(x=>x.id===id);if(b)total+=businessIncomeV2(b,owned);});const bi=document.getElementById('businessIncomeLabel');bi.textContent=`+${fmt(total)} ₽/день`;
+  document.getElementById('businessList').innerHTML=businessCatalogV2.map(b=>{const raw=state.businesses[b.id],locked=!requirementMet(b.req);if(!raw)return`<article class="buy-card ${locked?'unavailable':''}"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${b.icon}</div><div><div class="card-title">${b.name}</div><div class="card-subtitle">${locked?'Нужно: '+requirementText(b.req):`Приносит ${fmt(Math.round(b.income*difficultyCfg().income))} ₽ каждый игровой день.`}</div></div></div><div class="price">${fmt(scaledCost(b.price))} ₽</div></div><button class="buy-button" data-buy-business-v2="${b.id}" ${locked||state.rubles<scaledCost(b.price)?'disabled':''}>Купить</button></article>`;const o=normalizeBusinessV2(raw),income=businessIncomeV2(b,o),upgradeCost=businessUpgradeCostV2(b,o),nextIncome=o.level<5?Math.round(b.income*(o.level+1)*difficultyCfg().income):income;return`<article class="buy-card business-card-simple"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${b.icon}</div><div><div class="card-title">${b.name} · уровень ${o.level}</div><div class="card-subtitle">Доход начисляется автоматически каждый игровой день.</div></div></div><div class="reward business-profit positive">+${fmt(income)} ₽/день</div></div>${o.level<5?`<div class="business-upgrade-note">После улучшения: +${fmt(nextIncome)} ₽/день</div>`:''}<button class="buy-button" data-upgrade-business-v2="${b.id}" ${o.level>=5?'disabled':''}>${o.level>=5?'Максимальный уровень':`Улучшить за ${fmt(upgradeCost)} ₽`}</button></article>`}).join('');
+}
+function renderProfile(){
+  document.getElementById('profileName').textContent=state.playerName;document.getElementById('profileRank').innerHTML=`${chaptersV2[state.chapterIndex].name} · <span class="difficulty-badge">${difficultyCfg().name}</span>`;
+  const dev=[['🎓 Образование',state.education],['⭐ Репутация',state.reputation],['🤝 Связи',state.connections],['📣 Популярность',state.popularity],['🏛️ Влияние',state.influence],['💪 Сила',state.strength],['🧠 Интеллект',state.intelligence],['🗣 Харизма',state.charisma],['💼 Предпринимательство',state.entrepreneurship],['🗳 Политика',state.politicsSkill],['🍀 Удача',state.luck],['📖 Глава',`${state.chapterIndex+1}/8`]];document.getElementById('developmentStats').innerHTML=dev.map(([n,v])=>`<div class="dev-card"><span>${n}</span><strong>${typeof v==='number'?Math.round(v):v}</strong></div>`).join('');
+  document.getElementById('charactersList').innerHTML=charactersV2.map(c=>{const locked=state.chapterIndex<c.chapter,rel=state.relations[c.id]||0,pct=(rel+100)/2;return`<article class="buy-card ${locked?'unavailable':''}"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${c.icon}</div><div><div class="card-title">${c.name}</div><div class="card-subtitle">${locked?`Откроется в главе «${chaptersV2[c.chapter].name}»`:c.desc}</div></div></div><div class="price">${rel>0?'+':''}${rel}</div></div><div class="relation-bar"><div class="relation-fill" style="width:${pct}%"></div></div><button class="buy-button" data-character-v2="${c.id}" ${locked?'disabled':''}>Встретиться</button></article>`}).join('');
+  document.getElementById('endingsList').innerHTML=endingCatalogV2.map(e=>`<div class="ending-card ${state.endings.includes(e.id)?'unlocked':''}">${state.endings.includes(e.id)?`${e.icon} ${e.name}`:'🔒 Не открыто'}</div>`).join('');
+  const passive=assets.reduce((s,a)=>s+(state.assets[a.id]||0)*a.income,0),rows=[['Дней прожито',state.daysSurvived],['Действий выполнено',state.actionsDone],['Текущая работа',state.currentJob?.name||'нет'],['Опыт работы',state.jobExperience],['Предупреждения',`${state.jobWarnings}/3`],['Всего заработано',`${fmt(state.totalEarned)} ₽`],['Заработано в долларах',`$${fmt(state.totalDollarEarned)}`],['Всего потрачено',`${fmt(state.totalSpent)} ₽`],['Поражений на выборах',state.electionLosses],['Пассивный доход активов',`≈ ${fmt(Math.round(passive*difficultyCfg().income))} ₽/день`],['Текущее жильё',(homes.find(h=>h.id===state.homeId)||homes[0]).name]];document.getElementById('gameStats').innerHTML=rows.map(([a,b])=>`<div class="info-row"><span>${a}</span><strong>${b}</strong></div>`).join('');
+}
+
+function buyHome(id){const home=homes.find(x=>x.id===id);if(!home||id==='street')return;const price=scaledCost(home.price);if(state.rubles<price){showToast('Недостаточно рублей');return;}spend(price);state.homeId=id;state.reputation=clamp(state.reputation+Math.max(1,homes.indexOf(home)));recalcChapter();saveState();renderAll();haptic('medium');showToast(`Новое жильё: ${home.name}`);}
+function buyAsset(id){const item=assets.find(x=>x.id===id);if(!item)return;if(item.req&&!requirementMet(item.req)){showToast(`Нужно: ${requirementText(item.req)}`);return;}const price=scaledCost(item.price);if(state.rubles<price){showToast('Недостаточно рублей');return;}spend(price);state.assets[id]=(state.assets[id]||0)+1;state.entrepreneurship=v2ClampSkill(state.entrepreneurship+1.5);if(id==='company'){state.influence=clamp(state.influence+8);state.connections=clamp(state.connections+5);}saveState();renderAll();showToast(`${item.name} приобретён`);}
+
+function triggerRandomEvent(){
+  let pool=events.filter(ev=>(!ev.when||ev.when(state))&&ev.id!==state.lastEventId);if(!pool.length)pool=events.filter(ev=>!ev.when||ev.when(state));const ev=pool[random(0,pool.length-1)];state.lastEventId=ev.id;
+  openModal(ev.icon,ev.title,ev.text,ev.choices.map(c=>({text:c.text,disabled:c.can&&!c.can(state),onClick:()=>{const result=c.effect(state);state.luck=v2ClampSkill(state.luck+.25);normalize();const newlyCritical=syncCriticalStates();saveState();renderAll();openModal('🎲','Итог события',newlyCritical.length?`${result}\n\n⚠️ ${criticalWarningText(newlyCritical)}`:result,[]);}})));
+}
+
+function switchScreen(target){document.body.classList.toggle('home-screen',target==='home');document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.dataset.screen===target));const navTarget=['housing','inventory','investments'].includes(target)?'home':target;document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.target===navTarget));const titles={home:'Главная',actions:'Действия',career:'Карьера',housing:'Жильё',inventory:'Предметы',investments:'Активы',business:'Бизнес',profile:'Профиль'};document.getElementById('screenTitle').textContent=titles[target]||'Игра';requestAnimationFrame(syncFixedTopbar);window.scrollTo({top:0,behavior:'smooth'});haptic();}
+
+document.addEventListener('click',e=>{
+  const branch=e.target.closest('[data-branch]');if(branch){state.selectedBranch=branch.dataset.branch;saveState();renderCareer();return;}
+  const interview=e.target.closest('[data-interview]');if(interview){const [b,l]=interview.dataset.interview.split(':');interviewJob(b,Number(l));return;}
+  const item=e.target.closest('[data-item-v2]');if(item){buyItemV2(item.dataset.itemV2);return;}
+  const buyBiz=e.target.closest('[data-buy-business-v2]');if(buyBiz){buyBusinessV2(buyBiz.dataset.buyBusinessV2);return;}
+  const upgradeBiz=e.target.closest('[data-upgrade-business-v2]');if(upgradeBiz){upgradeBusinessV2(upgradeBiz.dataset.upgradeBusinessV2);return;}
+  const char=e.target.closest('[data-character-v2]');if(char){interactCharacterV2(char.dataset.characterV2);return;}
+});
+
+document.getElementById('helpButton').onclick=()=>openModal('💡','Как играть в v2.0','Все механики v1.22 сохранены. Теперь есть 8 глав, 6 новых навыков, предметы, пять карьерных направлений, собеседования, рабочие ситуации, постоянные персонажи, сюжетные цепочки и бизнесы. Бизнес можно купить и улучшать до пятого уровня. Чем выше уровень, тем больше автоматический доход за игровой день. Дерева навыков нет: навыки растут непосредственно от действий.',[]);
+
+if(!state.difficultyChosen)setTimeout(chooseDifficulty,50);
+
+requestAnimationFrame(syncFixedTopbar);

@@ -4,21 +4,46 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#f6c945" />
-  <title>От бомжа до президента</title>
+  <title>От бомжа до президента — v2.0.13</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
-<body>
+<body class="home-screen">
   <div class="app-shell">
     <header class="topbar">
-      <div>
-        <div class="eyebrow">День <span id="dayLabel">1</span> · <span id="timeLabel">08:00</span></div>
-        <h1 id="screenTitle">Главная</h1>
+      <div class="topbar-main">
+        <div>
+          <div class="eyebrow">День <span id="dayLabel">1</span> · <span id="timeLabel">08:00</span></div>
+          <h1 id="screenTitle">Главная</h1>
+        </div>
+        <button class="icon-button" id="helpButton" aria-label="Помощь">?</button>
       </div>
-      <button class="icon-button" id="helpButton" aria-label="Помощь">?</button>
+
+      <div class="persistent-hud" aria-label="Деньги и состояние персонажа">
+        <div class="hud-chip hud-money hud-rubles" id="hudRublesChip" title="Рубли">
+          <span class="hud-symbol">₽</span>
+          <span class="hud-money-copy"><small>Рубли</small><strong id="hudRublesValue">120</strong></span>
+        </div>
+        <div class="hud-chip hud-money hud-dollars" id="hudDollarsChip" title="Доллары">
+          <span class="hud-symbol">$</span>
+          <span class="hud-money-copy"><small>Доллары</small><strong id="hudDollarsValue">0</strong></span>
+        </div>
+        <div class="hud-chip hud-stat" data-hud-stat="health" title="Здоровье">
+          <div class="hud-stat-line"><span>❤️</span><strong id="hudHealthValue">72</strong></div>
+          <div class="hud-mini-bar"><div id="hudHealthBar"></div></div>
+        </div>
+        <div class="hud-chip hud-stat" data-hud-stat="hunger" title="Сытость">
+          <div class="hud-stat-line"><span>🍗</span><strong id="hudHungerValue">52</strong></div>
+          <div class="hud-mini-bar"><div id="hudHungerBar"></div></div>
+        </div>
+        <div class="hud-chip hud-stat" data-hud-stat="happiness" title="Счастье">
+          <div class="hud-stat-line"><span>😊</span><strong id="hudHappinessValue">35</strong></div>
+          <div class="hud-mini-bar"><div id="hudHappinessBar"></div></div>
+        </div>
+      </div>
     </header>
 
     <main>
@@ -36,9 +61,9 @@
           </div>
         </article>
 
-        <div class="money-grid">
+        <div class="money-grid home-summary-duplicate">
           <article class="money-card dark"><span>Рубли</span><strong id="rublesValue">120 ₽</strong></article>
-          <article class="money-card"><span>Доллары</span><strong id="dollarsValue">$0</strong><small class="rate-line flat" id="exchangeRateValue">База 92.00 ₽</small></article>
+          <article class="money-card dollar-card"><span>Доллары</span><strong id="dollarsValue">0 <i class="dollar-symbol">$</i></strong><small class="rate-line flat" id="exchangeRateValue">База 92.00 ₽</small></article>
         </div>
 
         <button class="exchange-home-button" data-open-exchange>
@@ -47,14 +72,30 @@
           <span class="exchange-home-arrow">›</span>
         </button>
 
-        <article class="panel">
+        <article class="panel home-summary-duplicate">
           <div class="section-head"><h3>Состояние</h3><span class="muted small">Не допускайте нуля</span></div>
           <div class="stats-list" id="statsList"></div>
         </article>
 
-        <article class="panel">
-          <div class="section-head"><h3>Быстрые действия</h3><button class="text-button" data-go="actions">Все действия</button></div>
-          <div class="quick-grid" id="quickActions"></div>
+        <article class="panel property-hub-panel">
+          <div class="section-head"><h3>Имущество</h3><span class="muted small">Перейти к разделу</span></div>
+          <div class="property-hub-grid">
+            <button class="property-hub-card" data-go="housing">
+              <span class="property-hub-icon">🏠</span>
+              <strong>Жильё</strong>
+              <small id="homeHubValue">Картонка под мостом</small>
+            </button>
+            <button class="property-hub-card" data-go="inventory">
+              <span class="property-hub-icon">🎒</span>
+              <strong>Предметы</strong>
+              <small id="inventoryHubValue">Нет предметов</small>
+            </button>
+            <button class="property-hub-card" data-go="investments">
+              <span class="property-hub-icon">📊</span>
+              <strong>Активы</strong>
+              <small id="assetsHubValue">Нет активов</small>
+            </button>
+          </div>
         </article>
 
         <article class="panel goal-panel">
@@ -84,17 +125,51 @@
           </div>
           <div class="career-icon" id="careerIcon">🪙</div>
         </article>
-        <div class="timeline" id="careerTimeline"></div>
+        <article class="panel" id="jobPanel">
+          <div class="section-head"><h3>Текущая работа</h3><span class="pill" id="currentJobLabel">Без работы</span></div>
+          <div id="currentJobCard" class="v2-block"></div>
+        </article>
+
+        <article class="panel">
+          <div class="section-head"><h3>Карьерные направления</h3><span class="muted small">Выберите путь</span></div>
+          <div class="category-row v2-tabs" id="branchTabs"></div>
+          <div class="cards-list compact" id="jobList"></div>
+        </article>
+
+        <article class="panel">
+          <div class="section-head"><h3>Главы пути</h3><span class="muted small">8 этапов</span></div>
+          <div class="timeline" id="careerTimeline"></div>
+        </article>
       </section>
 
-      <section class="screen" data-screen="assets">
+      <section class="screen" data-screen="housing">
+        <button class="subscreen-back" data-go="home">← На главную</button>
         <article class="panel">
           <div class="section-head"><h3>Жильё</h3><span class="pill" id="homeLabel">Картонка под мостом</span></div>
           <div class="cards-list compact" id="housingList"></div>
         </article>
+      </section>
+
+      <section class="screen" data-screen="inventory">
+        <button class="subscreen-back" data-go="home">← На главную</button>
+        <article class="panel">
+          <div class="section-head"><h3>Предметы</h3><span class="muted small">Дают постоянные бонусы</span></div>
+          <div class="cards-list compact" id="inventoryList"></div>
+        </article>
+      </section>
+
+      <section class="screen" data-screen="investments">
+        <button class="subscreen-back" data-go="home">← На главную</button>
         <article class="panel">
           <div class="section-head"><h3>Активы</h3><span class="muted small">Пассивный доход</span></div>
           <div class="cards-list compact" id="assetList"></div>
+        </article>
+      </section>
+
+      <section class="screen" data-screen="business">
+        <article class="panel">
+          <div class="section-head"><h3>Бизнес</h3><span class="pill" id="businessIncomeLabel">0 ₽/день</span></div>
+          <div class="cards-list compact" id="businessList"></div>
         </article>
       </section>
 
@@ -109,6 +184,14 @@
           <div class="dev-grid" id="developmentStats"></div>
         </article>
         <article class="panel">
+          <div class="section-head"><h3>Персонажи</h3><span class="muted small">Отношение от −100 до +100</span></div>
+          <div class="cards-list compact" id="charactersList"></div>
+        </article>
+        <article class="panel">
+          <div class="section-head"><h3>Достижения</h3><span class="muted small">Открываются за разные пути прохождения</span></div>
+          <div class="ending-grid" id="endingsList"></div>
+        </article>
+        <article class="panel">
           <h3>Статистика</h3>
           <div class="info-list" id="gameStats"></div>
         </article>
@@ -120,7 +203,7 @@
       <button class="nav-item active" data-target="home"><span>🏠</span><small>Главная</small></button>
       <button class="nav-item" data-target="actions"><span>⚡</span><small>Действия</small></button>
       <button class="nav-item" data-target="career"><span>📈</span><small>Карьера</small></button>
-      <button class="nav-item" data-target="assets"><span>🏢</span><small>Имущество</small></button>
+      <button class="nav-item" data-target="business"><span>🏢</span><small>Бизнес</small></button>
       <button class="nav-item" data-target="profile"><span>👤</span><small>Профиль</small></button>
     </nav>
   </div>
