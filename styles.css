@@ -223,12 +223,9 @@ body:not(.home-screen) .hud-mini-bar{
   margin-top:6px;
   background:#eeeae2;
 }
-body:not(.home-screen) [data-hud-stat="health"] .hud-mini-bar div{background:linear-gradient(90deg,#e15e64,#f08a8f)}
-body:not(.home-screen) [data-hud-stat="hunger"] .hud-mini-bar div{background:linear-gradient(90deg,#e69b28,#f6c945)}
-body:not(.home-screen) [data-hud-stat="happiness"] .hud-mini-bar div{background:linear-gradient(90deg,#4d9fdf,#7cc4f5)}
 body:not(.home-screen) .category-row{top:calc(164px + env(safe-area-inset-top))}
 
-/* The home screen keeps its familiar cards; only the dollar amount gets a green accent. */
+/* The home screen keeps its familiar money and state cards. */
 body.home-screen .dollar-card{
   border:1px solid #b8dec8;
   background:linear-gradient(145deg,#ffffff,#f2fff7);
@@ -316,4 +313,20 @@ body:not(.home-screen) .hud-stat.bad{
   color:var(--muted);
   font-size:13px;
   font-weight:700;
+}
+
+
+/* v2.0.16 — единая цветовая логика состояния на главной и внутренних экранах.
+   Среднее значение: жёлтый, ниже 25: красный, выше 75: зелёный. */
+body:not(.home-screen) .hud-stat .hud-mini-bar > div{
+  background:linear-gradient(90deg,var(--yellow-dark),var(--yellow));
+}
+body:not(.home-screen) .hud-stat.bad .hud-mini-bar > div{
+  background:linear-gradient(90deg,#aa3030,#e66767);
+}
+body:not(.home-screen) .hud-stat.good .hud-mini-bar > div{
+  background:linear-gradient(90deg,#217a52,#49bd87);
+}
+body:not(.home-screen) .hud-stat:not(.bad):not(.good) .hud-stat-line strong{
+  color:var(--ink);
 }
