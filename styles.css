@@ -553,3 +553,82 @@ body.overlay-open-v28{overflow:hidden}
 .help-done-v28{background:var(--yellow);color:var(--ink)}
 @media(min-width:541px){.help-center-v28{height:calc(100% - 32px);margin:16px 0;border-radius:28px;overflow:hidden}.help-footer-v28{bottom:16px;border-radius:0 0 28px 28px}.tutorial-card-v28{bottom:32px}}
 @media(max-width:360px){.tutorial-card-v28{padding:14px}.tutorial-card-v28 h2{font-size:17px}.help-header-v28 h2{font-size:18px}.help-section-v28{padding:13px}}
+
+
+/* v2.8.2 — stable rapid tapping and mobile scrolling */
+html{
+  width:100%;
+  min-height:100%;
+  overflow-x:hidden;
+  overscroll-behavior-x:none;
+  overscroll-behavior-y:none;
+  -webkit-text-size-adjust:100%;
+}
+body{
+  width:100%;
+  min-height:100dvh;
+  overflow-x:hidden;
+  overscroll-behavior-x:none;
+  overscroll-behavior-y:none;
+  touch-action:pan-y;
+}
+.app-shell{
+  min-height:100dvh;
+  overflow-x:clip;
+}
+main,
+.screen,
+.cards-list,
+#actionsList{
+  overflow-anchor:none;
+}
+button,
+a,
+[role="button"],
+.action-card-clickable,
+.category-chip,
+.nav-item,
+.exchange-home-button,
+.buy-button,
+.modal-choice{
+  touch-action:manipulation;
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-touch-callout:none;
+}
+input,
+textarea,
+select{
+  touch-action:manipulation;
+}
+.topbar,
+.bottom-nav,
+.category-row{
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+}
+@media (hover:none) and (pointer:coarse){
+  .screen{
+    animation:none!important;
+  }
+  .action-card-clickable,
+  .buy-button,
+  .exchange-home-button,
+  .nav-item,
+  .category-chip,
+  .icon-button,
+  .modal-choice,
+  .exchange-actions button{
+    transition:none!important;
+  }
+  .action-card-clickable:active,
+  .buy-button:active,
+  .exchange-home-button:active,
+  .nav-item:active,
+  .category-chip:active,
+  .icon-button:active,
+  .modal-choice:active,
+  .exchange-actions button:active{
+    transform:none!important;
+  }
+}

@@ -1,11 +1,11 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-set "PORT=9281"
-set "URL=http://127.0.0.1:%PORT%/index.html?v=2.8.1"
+set "PORT=9282"
+set "URL=http://127.0.0.1:%PORT%/index.html?v=2.8.2"
 
 call "%~dp0stop_game.bat" >nul 2>&1
-start "Homeless Survival v2.8.1 Server" /min "%~dp0start_server.bat"
+start "Homeless Survival v2.8.2 Server" /min "%~dp0start_server.bat"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$url='%URL%'; for($i=0; $i -lt 20; $i++){ try { Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 1 | Out-Null; exit 0 } catch { Start-Sleep -Milliseconds 500 } }; exit 1" >nul 2>&1
 if errorlevel 1 goto server_error

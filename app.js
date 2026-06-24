@@ -4,6 +4,8 @@ if (tg) {
   tg.expand();
   tg.setHeaderColor?.('#f6c945');
   tg.setBackgroundColor?.('#fffaf0');
+  // Prevent Telegram's pull-down gesture from moving the whole Mini App.
+  try { tg.disableVerticalSwipes?.(); } catch (_) {}
 }
 
 const STORAGE_KEY = 'street_to_president_v2';
@@ -3976,3 +3978,62 @@ document.addEventListener('keydown',event=>{
 if(state.difficultyChosen && !state.tutorialCompleted)scheduleTutorialV28();
 normalize();
 renderAll();
+
+
+// ========================= v2.8.2 — stable rapid taps on mobile =========================
+(function setupStableMobileInteractionV282(){
+  const isTouchDevice = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+  if(!isTouchDevice) return;
+
+  let lastTouchY = 0;
+  const innerScrollerSelector = '.modal,.help-content-v28,.tutorial-card-v28';
+
+  document.addEventListener('touchstart', event => {
+    if(event.touches.length === 1) lastTouchY = event.touches[0].clientY;
+  }, {passive:true});
+
+  document.addEventListener('touchmove', event => {
+    if(event.touches.length !== 1) return;
+    const currentY = event.touches[0].clientY;
+    const deltaY = currentY - lastTouchY;
+    lastTouchY = currentY;
+
+    // Horizontal action categories keep their native horizontal swipe.
+    if(event.target.closest('.category-row')) return;
+
+    const inner = event.target.closest(innerScrollerSelector);
+    if(inner){
+      const atTop = inner.scrollTop <= 0;
+      const atBottom = inner.scrollTop + inner.clientHeight >= inner.scrollHeight - 1;
+      if((atTop && deltaY > 0) || (atBottom && deltaY < 0)) event.preventDefault();
+      return;
+    }
+
+    const page = document.scrollingElement || document.documentElement;
+    const atTop = page.scrollTop <= 0;
+    const atBottom = page.scrollTop + page.clientHeight >= page.scrollHeight - 1;
+    if((atTop && deltaY > 0) || (atBottom && deltaY < 0)) event.preventDefault();
+  }, {passive:false});
+
+  // Safari gesture events may still try to zoom the WebView despite the viewport meta tag.
+  document.addEventListener('gesturestart', event => event.preventDefault(), {passive:false});
+})();
+
+// Full UI redraws happen after nearly every action. Preserve the scroll position so
+// replacing the tapped card does not make the page jump under the user's finger.
+const renderAllBeforeV282 = renderAll;
+renderAll = function(...args){
+  const page = document.scrollingElement || document.documentElement;
+  const previousY = page.scrollTop;
+  const previousScreen = document.querySelector('.screen.active')?.dataset.screen || '';
+  const result = renderAllBeforeV282.apply(this,args);
+  const currentScreen = document.querySelector('.screen.active')?.dataset.screen || '';
+  if(previousScreen && previousScreen === currentScreen){
+    page.scrollTop = previousY;
+    requestAnimationFrame(()=>{
+      const maxY = Math.max(0,page.scrollHeight-page.clientHeight);
+      page.scrollTop = Math.min(previousY,maxY);
+    });
+  }
+  return result;
+};
