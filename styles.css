@@ -632,3 +632,48 @@ select{
     transform:none!important;
   }
 }
+
+
+/* v2.8.6 — native desktop document scrolling */
+html,
+body{
+  overflow-y:auto;
+  scroll-behavior:auto;
+}
+/* The old desktop rounded-shell rule used overflow:hidden, which could make
+   mouse-wheel scrolling unreliable in some browsers and embedded WebViews. */
+.app-shell{
+  overflow:visible!important;
+}
+body.overlay-open-v28{
+  overflow:hidden!important;
+}
+
+
+/* v2.8.7 — freeze the page while onboarding is waiting for input */
+body.tutorial-open-v287{overscroll-behavior:none!important}
+.tutorial-overlay-v28:not(.hidden){touch-action:none;overscroll-behavior:none}
+.tutorial-card-v28,.tutorial-card-v28 button{touch-action:manipulation}
+
+/* v2.8.8 — restore native mouse-wheel scrolling on desktop and hybrid devices */
+@media (any-hover: hover), (any-pointer: fine){
+  html,
+  body{
+    overscroll-behavior-x:auto!important;
+    overscroll-behavior-y:auto!important;
+  }
+  body.tutorial-open-v287,
+  body.overlay-open-v28.tutorial-open-v287{
+    overflow-y:auto!important;
+    overscroll-behavior-y:auto!important;
+  }
+}
+
+/* Keep the anti-bounce protection only on touch-only phones and tablets. */
+@media (hover: none) and (pointer: coarse){
+  html,
+  body{
+    overscroll-behavior-x:none!important;
+    overscroll-behavior-y:none!important;
+  }
+}

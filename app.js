@@ -2014,7 +2014,16 @@ function initCategoryScroller(){
 
   row.addEventListener('wheel',e=>{
     if(row.scrollWidth<=row.clientWidth)return;
-    const delta=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;
+
+    // A normal vertical mouse-wheel gesture must keep scrolling the page.
+    // Horizontal category scrolling is used only for a real horizontal wheel
+    // gesture (trackpad) or while Shift is held. The old handler converted
+    // every vertical wheel movement into horizontal movement and blocked page
+    // scrolling whenever the pointer was over the sticky category bar.
+    const horizontalGesture=Math.abs(e.deltaX)>Math.abs(e.deltaY);
+    if(!horizontalGesture&&!e.shiftKey)return;
+
+    const delta=e.shiftKey&&!horizontalGesture?e.deltaY:e.deltaX;
     if(!delta)return;
     row.scrollLeft+=delta;
     e.preventDefault();
@@ -3409,7 +3418,7 @@ chapterProgressDetailsV211 = function(index=state.chapterIndex, source=state) {
     if (row.screen !== 'actions') return;
     if (title.includes('образован') || title.includes('интеллект')) row.category='education';
     else if (title.includes('популярност') || title.includes('харизм')) row.category='media';
-    else if (title.includes('политик') || title.includes('влияни') || title.includes('репутац') || title.includes('связ')) row.category='politics';
+    else if (title.includes('политик') || title.includes('влияни') || title.includes('репутац') || title.includes('связ') || title.includes('победит') || title.includes('выбор')) row.category='politics';
     else if (title.includes('сил')) row.category='work';
     else if (title.includes('руб') || title.includes('заработ') || title.includes('накоп')) row.category='work';
     else row.category='work';
@@ -4037,3 +4046,372 @@ renderAll = function(...args){
   }
   return result;
 };
+
+// ========================= v2.8.3 — interview cooldowns and harder elections =========================
+const INTERVIEW_COOLDOWN_DAYS_V283 = { easy:1, normal:2, hard:3, survival:4 };
+const ELECTION_BALANCE_V283 = {
+  easy:     {stageBonus:.07, finalBonus:7,  maxWinChance:78, banDays:10},
+  normal:   {stageBonus:0,   finalBonus:0,  maxWinChance:68, banDays:14},
+  hard:     {stageBonus:-.06,finalBonus:-8, maxWinChance:58, banDays:18},
+  survival: {stageBonus:-.12,finalBonus:-14,maxWinChance:50, banDays:22}
+};
+
+function interviewCooldownKeyV283(branchId,level){return `${branchId}:${level}`;}
+function interviewCooldownDaysV283(){return INTERVIEW_COOLDOWN_DAYS_V283[state.difficulty]||2;}
+function interviewCooldownRemainingV283(branchId,level){
+  const until=Number(state.interviewCooldowns?.[interviewCooldownKeyV283(branchId,level)])||0;
+  return Math.max(0,Math.ceil(until-(Number(state.day)||1)));
+}
+
+const normalizeBeforeV283=normalize;
+normalize=function(){
+  normalizeBeforeV283();
+  state.interviewCooldowns=state.interviewCooldowns&&typeof state.interviewCooldowns==='object'?state.interviewCooldowns:{};
+  Object.keys(state.interviewCooldowns).forEach(key=>{
+    const until=Math.max(0,Math.round(Number(state.interviewCooldowns[key])||0));
+    if(!until || until<=state.day)delete state.interviewCooldowns[key];
+    else state.interviewCooldowns[key]=until;
+  });
+};
+
+interviewJob=function(branchId,level){
+  if(state.gameOver)return;
+  const branch=careerBranchesV2[branchId];
+  const job=branch?.jobs[level-1];
+  if(!job)return;
+  const cooldown=interviewCooldownRemainingV283(branchId,level);
+  if(cooldown>0){showToast(`Повторное собеседование через ${cooldown} дн.`);return;}
+  if(!previousCareerStepDoneV27(branchId,level)){
+    const previous=branch.jobs[level-2]?.name||'предыдущую должность';
+    showToast(`Сначала получите должность «${previous}»`);return;
+  }
+  if(!requirementMet(job.req)){showToast(`Нужно: ${requirementText(job.req)}`);return;}
+  const relation=(state.relations.sergey||0)*.12+(state.relations.irina||0)*.08;
+  const skill=state[branch.skill]||0;
+  let probability=48+difficultyCfg().interview+skill*.45+state.charisma*.22+state.reputation*.18+relation;
+  if(state.inventory?.suit)probability+=15;
+  if((state.jobLevels[branchId]||0)>=level-1)probability+=7;
+  probability=Math.max(12,Math.min(92,probability));
+  advanceTime(state.inventory?.car?2:3);
+  if(state.gameOver)return;
+  const key=interviewCooldownKeyV283(branchId,level);
+  if(Math.random()*100<probability){
+    state.currentJob={branch:branchId,level,name:job.name,salary:job.salary};
+    state.jobLevels[branchId]=Math.max(state.jobLevels[branchId]||0,level);
+    state.jobExperience=0;state.jobWarnings=0;
+    state.connections=clamp(state.connections+1);
+    delete state.interviewCooldowns[key];
+    showToast(`Вы приняты: ${job.name}`);
+  }else{
+    const wait=interviewCooldownDaysV283();
+    state.interviewCooldowns[key]=state.day+wait;
+    state.happiness=clamp(state.happiness-5);
+    showToast(`Отказ. Повторная попытка через ${wait} дн.`);
+  }
+  recalcChapter();saveState();renderAll();
+};
+
+const renderCareerBeforeV283=renderCareer;
+renderCareer=function(){
+  renderCareerBeforeV283();
+  const branchId=state.selectedBranch;
+  const branch=careerBranchesV2[branchId]||careerBranchesV2.labor;
+  const currentJob=state.currentJob;
+  const list=document.getElementById('jobList');
+  if(!list)return;
+  list.innerHTML=branch.jobs.map((position,index)=>{
+    const level=index+1;
+    const current=currentJob?.branch===branchId&&Number(currentJob.level)===level;
+    const previousDone=previousCareerStepDoneV27(branchId,level);
+    const requirementsDone=requirementMet(position.req);
+    const cooldown=interviewCooldownRemainingV283(branchId,level);
+    const available=previousDone&&requirementsDone&&cooldown===0;
+    const salary=jobSalaryV22(position,branchId);
+    let subtitle='Шанс зависит от навыков, репутации, одежды и сложности.';
+    if(!previousDone)subtitle=`Сначала получите должность «${branch.jobs[index-1].name}»`;
+    else if(!requirementsDone)subtitle=`Нужно: ${requirementText(position.req)}`;
+    else if(cooldown>0)subtitle=`После отказа нужно подождать. Доступно через ${cooldown} дн.`;
+    const buttonText=current?'Текущая работа':cooldown>0?`Повторно через ${cooldown} дн.`:'Пройти собеседование';
+    return `<article class="buy-card ${!available&&!current?'unavailable':''}"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${branch.icon}</div><div><div class="card-title">${position.name}</div><div class="card-subtitle">${subtitle}</div></div></div><div class="price">${fmt(salary)} ₽</div></div><button class="buy-button" data-interview="${branchId}:${level}" ${!available||current?'disabled':''}>${buttonText}</button></article>`;
+  }).join('');
+};
+
+function electionConfigV283(){return ELECTION_BALANCE_V283[state.difficulty]||ELECTION_BALANCE_V283.normal;}
+function electionCampaignStateTextV283(c){
+  if(c.score>=22)return 'Кампания набрала сильный темп.';
+  if(c.score>=8)return 'Кампания проходит уверенно, но исход не решён.';
+  if(c.score>-8)return 'Кампания идёт нестабильно.';
+  return 'Кампания серьёзно отстаёт от соперника.';
+}
+function electionResolveChoiceV283(c,baseChance,successPoints,failPoints,successText,failText){
+  const probability=Math.max(.18,Math.min(.84,baseChance+electionConfigV283().stageBonus));
+  const success=Math.random()<probability;
+  if(success){c.score+=successPoints;c.history.push(`✅ ${successText}`);}
+  else{c.score+=failPoints;c.mistakes++;c.history.push(`❌ ${failText}`);}
+  return success;
+}
+function electionModalV283(icon,title,text,choices){
+  openModal(icon,title,text,choices,{locked:true});
+}
+function electionStageIntroV283(c){
+  electionModalV283('📜','1/8 — Предвыборная программа',`Ваш главный соперник — ${c.rival.name}. Выберите программу, которой сможете соответствовать.`,[
+    {text:'Социальные реформы',onClick:()=>{electionResolveChoiceV283(c,.40+state.reputation/320+state.charisma/450,7,-5,'программа вызвала доверие','обещания сочли нереалистичными');electionStageTeamV283(c);}},
+    {text:'Экономический рост',onClick:()=>{electionResolveChoiceV283(c,.38+state.entrepreneurship/330+state.intelligence/350,8,-6,'экономическая программа убедила избирателей','план раскритиковали эксперты');electionStageTeamV283(c);}}
+  ]);
+}
+function electionStageTeamV283(c){
+  const professionalCost=15000000;
+  electionModalV283('👥','2/8 — Избирательный штаб',`${electionCampaignStateTextV283(c)}\n\nСильный штаб уменьшает количество ошибок, но требует дополнительных денег.`,[
+    {text:`Нанять политтехнологов — ${fmt(professionalCost)} ₽`,disabled:state.rubles<professionalCost,onClick:()=>{spend(professionalCost);electionResolveChoiceV283(c,.67+state.connections/600,8,-4,'штаб выстроил дисциплинированную кампанию','между консультантами начался конфликт');electionStageRegionsV283(c);}},
+    {text:'Собрать волонтёров',onClick:()=>{electionResolveChoiceV283(c,.43+state.popularity/360+state.reputation/600,6,-7,'волонтёры создали движение снизу','волонтёры не справились с масштабом');electionStageRegionsV283(c);}}
+  ]);
+}
+function electionStageRegionsV283(c){
+  electionModalV283('🗺️','3/8 — Поездки по регионам',`${electionCampaignStateTextV283(c)}\n\nКуда направить основные силы?`,[
+    {text:'Бороться за колеблющиеся регионы',onClick:()=>{electionResolveChoiceV283(c,.36+state.politicsSkill/310+state.connections/520,10,-9,'удалось привлечь новых сторонников','поездка закончилась серией провальных встреч');electionStageFundingV283(c);}},
+    {text:'Укрепить свои регионы',onClick:()=>{electionResolveChoiceV283(c,.58+state.popularity/650,5,-4,'сторонники стали активнее','явка сторонников осталась низкой');electionStageFundingV283(c);}}
+  ]);
+}
+function electionStageFundingV283(c){
+  electionModalV283('💰','4/8 — Финансирование',`${electionCampaignStateTextV283(c)}\n\nИсточник денег повлияет на доверие к кандидату.`,[
+    {text:'Принять помощь крупного бизнеса',onClick:()=>{const ok=electionResolveChoiceV283(c,.40+state.connections/350+state.entrepreneurship/500,10,-11,'спонсоры обеспечили сильную рекламу','связь со спонсорами вызвала скандал');if(!ok)c.reputationPenalty+=6;electionStageMediaV283(c);}},
+    {text:'Собирать небольшие пожертвования',onClick:()=>{electionResolveChoiceV283(c,.48+state.popularity/470+state.reputation/650,7,-6,'народное финансирование стало символом кампании','сбор средств оказался слишком слабым');electionStageMediaV283(c);}}
+  ]);
+}
+function electionStageMediaV283(c){
+  electionModalV283('📺','5/8 — Медийная кампания',`${electionCampaignStateTextV283(c)}\n\nВыберите тон основной рекламной волны.`,[
+    {text:'Позитивная кампания',onClick:()=>{electionResolveChoiceV283(c,.47+state.charisma/340+state.reputation/600+(state.inventory?.phone ? .04 : 0),7,-6,'позитивные ролики усилили доверие','кампания оказалась незаметной');electionStageCrisisV283(c);}},
+    {text:'Атаковать соперника',onClick:()=>{const ok=electionResolveChoiceV283(c,.30+state.politicsSkill/330+state.luck/600,12,-13,'расследование серьёзно ударило по сопернику','атака обернулась против кандидата');if(!ok)c.reputationPenalty+=8;electionStageCrisisV283(c);}}
+  ]);
+}
+function electionStageCrisisV283(c){
+  electionModalV283('⚠️','6/8 — Предвыборный скандал',`${electionCampaignStateTextV283(c)}\n\nЖурналисты нашли спорные расходы вашего штаба.`,[
+    {text:'Опубликовать все документы',onClick:()=>{electionResolveChoiceV283(c,.43+state.reputation/300+state.education/600,8,-7,'открытость остановила скандал','в документах нашли новые нарушения');electionStageDebateV283(c);}},
+    {text:'Перевести внимание на соперника',onClick:()=>{const ok=electionResolveChoiceV283(c,.32+state.charisma/360+state.politicsSkill/500,10,-12,'информационную повестку удалось перехватить','уклонение от ответа усилило подозрения');if(!ok)c.reputationPenalty+=7;electionStageDebateV283(c);}}
+  ]);
+}
+function electionStageDebateV283(c){
+  electionModalV283('🎤','7/8 — Финальные дебаты',`${electionCampaignStateTextV283(c)}\n\nФинальные дебаты смотрит вся страна.`,[
+    {text:'Говорить фактами',onClick:()=>{electionResolveChoiceV283(c,.37+state.intelligence/330+state.education/420+state.politicsSkill/600,10,-9,'вы уверенно выиграли спор по существу','ответы показались сухими и неубедительными');electionStageTurnoutV283(c);}},
+    {text:'Давить харизмой',onClick:()=>{electionResolveChoiceV283(c,.39+state.charisma/300+state.popularity/650+(state.inventory?.suit ? .05 : 0),10,-10,'яркое выступление запомнилось зрителям','эмоциональность сочли пустыми обещаниями');electionStageTurnoutV283(c);}}
+  ]);
+}
+function electionStageTurnoutV283(c){
+  electionModalV283('🗳️','8/8 — День голосования',`${electionCampaignStateTextV283(c)}\n\nПоследнее решение штаба определит явку.`,[
+    {text:'Мобилизовать ядро сторонников',onClick:()=>{electionResolveChoiceV283(c,.38+state.connections/310+state.influence/420,9,-8,'сеть сторонников обеспечила высокую явку','региональные штабы сорвали мобилизацию');finishElectionV283(c);}},
+    {text:'Убеждать сомневающихся',onClick:()=>{electionResolveChoiceV283(c,.35+state.popularity/420+state.reputation/560+state.charisma/650,11,-10,'последняя агитация привлекла сомневающихся','поздняя агитация вызвала раздражение');finishElectionV283(c);}}
+  ]);
+}
+
+startElectionCampaign=function(){
+  const rivals=[
+    {name:'богатый предприниматель',power:28},
+    {name:'опытный губернатор',power:31},
+    {name:'популярный телеведущий',power:26},
+    {name:'кандидат правящей коалиции',power:34}
+  ];
+  const campaign={score:0,mistakes:0,reputationPenalty:0,history:[],rival:rivals[random(0,rivals.length-1)]};
+  electionStageIntroV283(campaign);
+};
+
+function finishElectionV283(c){
+  const cfg=electionConfigV283();
+  const statPower=
+    state.popularity*.13+state.reputation*.11+state.influence*.13+
+    state.connections*.07+state.politicsSkill*.14+state.charisma*.07+state.luck*.03;
+  const itemBonus=(state.inventory?.suit?3:0)+(state.inventory?.phone?2:0);
+  const relationBonus=Math.max(0,state.relations.viktor||0)*.035+Math.max(0,state.relations.marina||0)*.02;
+  const rawChance=18+statPower+c.score*.75+itemBonus+relationBonus-c.rival.power+cfg.finalBonus-c.reputationPenalty*.5;
+  const winChance=Math.max(10,Math.min(cfg.maxWinChance,rawChance));
+  const won=Math.random()*100<winChance;
+  const expectedShare=Math.max(37,Math.min(57,36+winChance*.23+c.score*.08));
+  const voteShare=won
+    ?Math.max(50,Math.min(61,Math.round(expectedShare+random(-1,5))))
+    :Math.max(29,Math.min(49,Math.round(expectedShare+random(-8,2))));
+
+  if(won){
+    state.president=true;state.careerIndex=9;state.chapterIndex=7;state.chapterEnteredDay=state.day;
+    state.influence=100;state.reputation=clamp(state.reputation+8);state.popularity=clamp(state.popularity+6);
+    if(!state.endings.includes('president'))state.endings.push('president');
+    saveState();renderAll();
+    openModal('⭐',`Победа — ${voteShare}% голосов`,`Вы выиграли тяжёлую кампанию и стали президентом.\n\nКлючевые этапы:\n${c.history.join('\n')}`,[]);
+    return;
+  }
+
+  state.electionLosses++;
+  const closeLoss=voteShare>=45;
+  const popularityLoss=(closeLoss?7:13)+Math.min(6,c.mistakes);
+  const reputationLoss=(closeLoss?5:9)+Math.round(c.reputationPenalty/2);
+  const influenceLoss=closeLoss?4:8;
+  state.popularity=clamp(state.popularity-popularityLoss);
+  state.reputation=clamp(state.reputation-reputationLoss);
+  state.influence=clamp(state.influence-influenceLoss);
+  state.happiness=clamp(state.happiness-18);
+  state.electionBanUntil=state.day+cfg.banDays;
+  saveState();renderAll();
+  openModal('🚫',`Поражение — ${voteShare}% голосов`,`Выборы проиграны. Даже сильная подготовка не гарантирует победу.\n\nПотери: популярность −${popularityLoss}, репутация −${reputationLoss}, влияние −${influenceLoss}. Новую кампанию можно начать через ${cfg.banDays} дней.\n\nКлючевые этапы:\n${c.history.join('\n')}`,[]);
+}
+
+// Refresh the reference text created by v2.8.
+const electionHelpV283=document.querySelector('#help-election');
+if(electionHelpV283)electionHelpV283.innerHTML=`<h3>🗳️ Президентские выборы</h3><p>Выборы открываются в главе кандидата после выполнения всех требований. Участие стоит <strong>100 000 000 ₽</strong>.</p><p>Кампания состоит из 8 этапов: программа, штаб, регионы, финансирование, медиа, скандал, дебаты и голосование. Решения проходят скрытые проверки, а даже максимально развитый кандидат может проиграть. На высоких сложностях риск поражения значительно выше.</p>`;
+const careerHelpV283=document.querySelector('#help-career');
+if(careerHelpV283){const paragraphs=careerHelpV283.querySelectorAll('p');if(paragraphs[0])paragraphs[0].textContent='Работу получают через собеседование. Учитываются требования должности, навык ветки, харизма, репутация, персонажи и сложность. После отказа повторная попытка на ту же должность становится доступна через 1–4 игровых дня в зависимости от сложности.';}
+
+normalize();
+renderAll();
+
+// ========================= v2.8.6 — native desktop wheel scrolling =========================
+// Vertical mouse-wheel scrolling is intentionally left to the browser.
+// Only the category strip handles a real horizontal gesture or Shift + wheel.
+
+
+// ========================= v2.8.7 — tutorial must not move the page before user input =========================
+const tutorialSessionV287={screen:'home',scrollY:0,active:false};
+function tutorialVisibleV287(){
+  const overlay=document.getElementById('tutorialOverlayV28');
+  return !!overlay && !overlay.classList.contains('hidden');
+}
+function switchScreenForTutorialV287(target){
+  document.body.classList.toggle('home-screen',target==='home');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.dataset.screen===target));
+  const navTarget=['housing','inventory','investments'].includes(target)?'home':target;
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.target===navTarget));
+  const titles={home:'Главная',actions:'Действия',career:'Карьера',housing:'Жильё',inventory:'Предметы',investments:'Активы',business:'Бизнес',profile:'Профиль'};
+  const title=document.getElementById('screenTitle');
+  if(title)title.textContent=titles[target]||'Игра';
+  requestAnimationFrame(syncFixedTopbar);
+}
+startTutorialV28=function(force=false){
+  if(state.gameOver || (!force && state.tutorialCompleted) || !state.difficultyChosen)return;
+  ensureV28Ui();
+  tutorialSessionV287.screen=document.querySelector('.screen.active')?.dataset.screen||'home';
+  tutorialSessionV287.scrollY=window.scrollY||document.documentElement.scrollTop||0;
+  tutorialSessionV287.active=true;
+  state.tutorialStep=0;
+  saveState();
+  document.getElementById('tutorialOverlayV28').classList.remove('hidden');
+  document.body.classList.add('overlay-open-v28','tutorial-open-v287');
+  // The first welcome step is rendered in place. No screen switch and no scroll
+  // happens until the player explicitly presses “Далее”.
+  showTutorialStepV28(0,false);
+};
+showTutorialStepV28=function(index,userInitiated=true){
+  ensureV28Ui();
+  const safe=Math.max(0,Math.min(tutorialStepsV28.length-1,index));
+  state.tutorialStep=safe;
+  saveState();
+  const step=tutorialStepsV28[safe];
+
+  if(userInitiated){
+    if(step.category){selectedCategory=step.category;renderActions();}
+    if(step.screen)switchScreenForTutorialV287(step.screen);
+  }
+
+  document.getElementById('tutorialCounterV28').textContent=`${safe+1}/${tutorialStepsV28.length}`;
+  document.getElementById('tutorialIconV28').textContent=step.icon;
+  document.getElementById('tutorialTitleV28').textContent=step.title;
+  document.getElementById('tutorialTextV28').textContent=step.text;
+  document.getElementById('tutorialBackV28').disabled=safe===0;
+  document.getElementById('tutorialNextV28').textContent=safe===tutorialStepsV28.length-1?'Завершить':'Далее';
+
+  setTimeout(()=>{
+    const target=tutorialTargetV28(step);
+    if(userInitiated && target){
+      if(target.closest('#categoryRow')){
+        target.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'});
+      }else if(!target.closest('.topbar') && !target.closest('.bottom-nav')){
+        target.scrollIntoView({behavior:'auto',block:'center',inline:'nearest'});
+      }
+    }
+    requestAnimationFrame(positionTutorialV28);
+  },80);
+};
+finishTutorialV28=function(skipped=false){
+  state.tutorialCompleted=true;
+  state.tutorialStep=0;
+  saveState();
+  document.getElementById('tutorialOverlayV28')?.classList.add('hidden');
+  document.body.classList.remove('overlay-open-v28','tutorial-open-v287');
+
+  if(skipped && tutorialSessionV287.active){
+    switchScreenForTutorialV287(tutorialSessionV287.screen||'home');
+    const restoreY=tutorialSessionV287.scrollY||0;
+    requestAnimationFrame(()=>window.scrollTo({top:restoreY,behavior:'auto'}));
+  }else{
+    switchScreenForTutorialV287('home');
+    requestAnimationFrame(()=>window.scrollTo({top:0,behavior:'auto'}));
+    showToast('Обучение завершено');
+  }
+  tutorialSessionV287.active=false;
+};
+
+// Keep the mobile page fixed during onboarding, but never block a real mouse
+// wheel. Desktop and hybrid devices must retain native browser scrolling.
+document.addEventListener('touchmove',event=>{
+  if(tutorialVisibleV287())event.preventDefault();
+},{capture:true,passive:false});
+
+// ========================= v2.8.8 — native mouse-wheel scrolling =========================
+// No document-level wheel handler is used. Chromium must receive the wheel
+// event directly so it can scroll the page smoothly and natively.
+
+
+// ========================= v2.8.9 — fixed permanent-job salary =========================
+// A permanent job receives one salary offer at the moment of hiring. Later
+// growth of skills, relationships or equipment no longer changes that salary.
+function jobOfferSalaryV289(job, branchId){
+  if(!job)return 0;
+  const branch=careerBranchesV2[branchId];
+  let pay=Number(job.salary||0)*difficultyCfg().income;
+  if(branch){
+    const skill=Number(state[branch.skill]||0);
+    pay*=1+Math.min(.45,skill*.005);
+  }
+  if(branchId==='office'&&state.inventory?.suit)pay*=1.08;
+  if(branchId==='it'&&state.inventory?.laptop)pay*=1.12;
+  pay*=1+relationTierV25('sergey');
+  return Math.max(0,Math.round(pay));
+}
+
+const jobSalaryBeforeV289=jobSalaryV22;
+jobSalaryV22=function(job,branchId){
+  if(!job)return 0;
+  const frozen=Number(job.fixedSalary);
+  if(Number.isFinite(frozen)&&frozen>=0)return Math.round(frozen);
+  return jobOfferSalaryV289(job,branchId);
+};
+
+const normalizeBeforeV289=normalize;
+normalize=function(){
+  normalizeBeforeV289();
+  if(state.currentJob){
+    const fixed=Number(state.currentJob.fixedSalary);
+    if(!Number.isFinite(fixed)||fixed<0){
+      state.currentJob.fixedSalary=jobOfferSalaryV289(state.currentJob,state.currentJob.branch);
+    }else{
+      state.currentJob.fixedSalary=Math.round(fixed);
+    }
+  }
+};
+
+const interviewJobBeforeV289=interviewJob;
+interviewJob=function(branchId,level){
+  const previousJob=state.currentJob;
+  interviewJobBeforeV289(branchId,level);
+  const hired=state.currentJob;
+  if(hired && hired!==previousJob && hired.branch===branchId && Number(hired.level)===Number(level)){
+    const position=careerBranchesV2[branchId]?.jobs?.[Number(level)-1]||hired;
+    hired.fixedSalary=jobOfferSalaryV289(position,branchId);
+    saveState();
+    renderAll();
+  }
+};
+
+// Migrate an existing permanent job once, then keep the value unchanged.
+normalize();
+saveState();
+renderAll();
+
+// ========================= v2.8.10 — election progress navigation fix =========================
+// The chapter goal "Победить на президентских выборах" now opens the Politics action category.
