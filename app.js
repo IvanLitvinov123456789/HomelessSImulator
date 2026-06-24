@@ -21,9 +21,11 @@ const defaultState = {
   health: 72, hunger: 52, happiness: 35,
   education: 0, reputation: 0, connections: 0, popularity: 0, influence: 0,
   strength: 0, intelligence: 0, charisma: 0, entrepreneurship: 0, politicsSkill: 0, luck: 0,
-  difficulty: 'normal', difficultyChosen: false, chapterIndex: 0,
+  difficulty: 'normal', difficultyChosen: false, tutorialCompleted: false, tutorialStep: 0, chapterIndex: 0,
   currentJob: null, jobExperience: 0, jobWarnings: 0, jobLevels: {}, selectedBranch: 'labor',
   lastDailyIncome: {assets:0,businesses:0,total:0},
+  dayReports: [],
+  dayStartSnapshot: {rubles:120,dollars:0,health:72,hunger:52,happiness:35},
   inventory: {}, businesses: {}, relations: {}, characterVisits: {}, pendingStories: [], stories: {}, endings: [],
   day: 1, hour: 8, careerIndex: 0, homeId: 'street', assets: {},
   totalEarned: 0, totalDollarEarned: 0, totalSpent: 0, actionsDone: 0, daysSurvived: 1,
@@ -1631,9 +1633,6 @@ function performAction(id){
   recalcCareer();
   saveState(); renderAll(); haptic();
   if(reward){
-    showToast(`${a.name}: +${a.currency==='USD'?'$':''}${fmt(reward)}${a.currency==='USD'?'':' ₽'}`);
-  }else{
-    showToast(a.name);
   }
 }
 
@@ -2118,6 +2117,8 @@ function loadState(){
     merged.stories={...base.stories,...(saved.stories||{})};
     merged.pendingStories=Array.isArray(saved.pendingStories)?saved.pendingStories:[];
     merged.endings=Array.isArray(saved.endings)?saved.endings:[];
+    merged.dayReports=Array.isArray(saved.dayReports)?saved.dayReports:[];
+    merged.dayStartSnapshot=saved.dayStartSnapshot?{...base.dayStartSnapshot,...saved.dayStartSnapshot}:{rubles:Number(merged.rubles)||0,dollars:Number(merged.dollars)||0,health:Number(merged.health)||0,hunger:Number(merged.hunger)||0,happiness:Number(merged.happiness)||0};
     merged.criticalHours={...base.criticalHours,...(saved.criticalHours||{})};
     merged.criticalActive={...base.criticalActive,...(saved.criticalActive||{})};
     return merged;
@@ -2126,7 +2127,7 @@ function loadState(){
 function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
 
 function chooseDifficulty(){
-  openModal('🎮','Новая игра v2.3','Выберите сложность. Изменить её во время прохождения нельзя.',[
+  openModal('🎮','Новая игра v2.6','Выберите сложность. Изменить её во время прохождения нельзя.',[
     {text:'Лёгкая — больше доходов и 36 часов до смерти',onClick:()=>setDifficulty('easy')},
     {text:'Нормальная — рекомендуемый баланс',onClick:()=>setDifficulty('normal')},
     {text:'Сложная — меньше доходы и опаснее события',onClick:()=>setDifficulty('hard')},
@@ -2258,7 +2259,7 @@ function performAction(id){
   advanceTime(effectiveActionHours(a));if(state.gameOver)return;
   state.actionsDone++;recalcCareer();recalcChapter();checkEndingsV2();saveState();renderAll();haptic();
   if(a.cat==='work'&&Math.random()<.22*difficultyCfg().eventRisk)setTimeout(()=>{if(document.getElementById('modalBackdrop').classList.contains('hidden'))triggerWorkEventV2();},220);
-  showToast(reward?`${a.name}: +${a.currency==='USD'?'$':''}${fmt(reward)}${a.currency==='USD'?'':' ₽'}`:`${a.name}${Object.keys(gains).length?' · навык повышен':''}`);
+  // Успешные обычные действия не создают всплывающее уведомление.
 }
 function performCustom(a){
   if(a.id==='job_shift'){performJobShift();return;}
@@ -2286,7 +2287,7 @@ function performJobShift(){
   const level=job.level;addValue('health',Math.ceil((-2-level*1.3)*difficultyCfg().decay));addValue('hunger',Math.ceil((-9-level*2)*difficultyCfg().decay));addValue('happiness',Math.ceil((-4-level)*difficultyCfg().decay));
   state.jobExperience+=2+level;state[branch.skill]=v2ClampSkill(state[branch.skill]+1+level*.25);
   advanceTime(state.inventory?.car?7:8);if(state.gameOver)return;
-  state.actionsDone++;recalcChapter();saveState();renderAll();showToast(`Смена завершена: +${fmt(pay)} ₽`);
+  state.actionsDone++;recalcChapter();saveState();renderAll();
   if(Math.random()<.28*difficultyCfg().eventRisk)setTimeout(triggerWorkEventV2,180);
   if(state.jobWarnings>=3){const lost=state.currentJob.name;state.currentJob=null;state.jobWarnings=0;state.jobExperience=0;openModal('📉','Увольнение',`После трёх предупреждений вы потеряли работу «${lost}».`,[]);}
 }
@@ -2370,7 +2371,7 @@ function triggerDueStoryV2(){
       {text:'Дистанцироваться',onClick:()=>{state.popularity=clamp(state.popularity-2);state.reputation=clamp(state.reputation+2);closeModal();renderAll();}}
     ]),
     investor_result:()=>openModal('💼','Результат партнёрства','Олег вернулся с результатами совместного проекта.',[
-      {text:'Забрать прибыль',onClick:()=>{if(Math.random()<.58+state.entrepreneurship/300)earn(120000);else state.rubles=Math.max(0,state.rubles-60000);state.entrepreneurship=v2ClampSkill(state.entrepreneurship+3);closeModal();renderAll();}},
+      {text:'Забрать прибыль',onClick:()=>{if(Math.random()<.58+state.entrepreneurship/300)earn(120000);else state.rubles=Math.max(0,state.rubles-60000);closeModal();renderAll();}},
       {text:'Оставить деньги в проекте',onClick:()=>{state.connections=clamp(state.connections+7);state.relations.oleg=clamp((state.relations.oleg||0)+10,-100,100);closeModal();renderAll();}}
     ]),
     mentor_exam:()=>openModal('🎓','Экзамен наставника','Ирина предлагает сложный экзамен, который может ускорить карьеру.',[
@@ -2392,7 +2393,7 @@ events.push(
   ]},
   {id:'story_investor_v2',icon:'🤝',title:'Партнёрство с Олегом',text:'Олег предлагает вложить 60 000 ₽ в совместный проект.',when:s=>s.chapterIndex>=3&&!s.stories.oleg&&s.rubles>=60000,choices:[
     {text:'Вложиться',effect:s=>{s.rubles-=60000;s.stories.oleg='invested';scheduleStoryV2('investor_result',6);s.relations.oleg+=5;return 'Проект запущен. Результаты будут через несколько дней.'}},
-    {text:'Отказаться',effect:s=>{s.stories.oleg='no';s.entrepreneurship+=1;return 'Вы сохранили деньги и избежали риска.'}}
+    {text:'Отказаться',effect:s=>{s.stories.oleg='no';return 'Вы сохранили деньги и избежали риска.'}}
   ]},
   {id:'story_teacher',icon:'👩‍🏫',title:'Наставник',text:'Ирина предлагает бесплатно готовить вас к сложному экзамену.',when:s=>s.chapterIndex>=1&&!s.stories.teacher,choices:[
     {text:'Согласиться',effect:s=>{s.stories.teacher='yes';scheduleStoryV2('mentor_exam',5);s.relations.irina+=6;return 'Подготовка началась.'}},
@@ -2414,16 +2415,55 @@ function advanceTime(hours){
   if(newCritical.length){newCritical.forEach(k=>state.criticalHours[k]=0);showCriticalWarning(newCritical);}
   else if(crossedDay&&!suppressRandomEvent){if(!triggerDueStoryV2()&&Math.random()<.43)setTimeout(()=>{if(!state.gameOver)triggerRandomEvent();},250);}
 }
+function daySnapshotV24(){
+  return {
+    rubles:Number(state.rubles)||0,
+    dollars:Number(state.dollars)||0,
+    health:Number(state.health)||0,
+    hunger:Number(state.hunger)||0,
+    happiness:Number(state.happiness)||0
+  };
+}
+function signedValueV24(value,suffix=''){
+  const number=Math.round(Number(value)||0);
+  if(number===0)return `0${suffix}`;
+  return `${number>0?'+':'−'}${fmt(Math.abs(number))}${suffix}`;
+}
+function saveDayReportV24(completedDay,startSnapshot,details={}){
+  const start={...daySnapshotV24(),...(startSnapshot||{})};
+  const report={
+    day:completedDay,
+    rublesDelta:Math.round(state.rubles-(Number(start.rubles)||0)),
+    dollarsDelta:Math.round(state.dollars-(Number(start.dollars)||0)),
+    healthDelta:Math.round(state.health-(Number(start.health)||0)),
+    hungerDelta:Math.round(state.hunger-(Number(start.hunger)||0)),
+    happinessDelta:Math.round(state.happiness-(Number(start.happiness)||0)),
+    assetsIncome:Math.round(Number(details.assetsIncome)||0),
+    businessesIncome:Math.round(Number(details.businessesIncome)||0),
+    housingCost:Math.round(Number(details.housingCost)||0),
+    balance:Math.round(state.rubles)
+  };
+  const known=report.assetsIncome+report.businessesIncome-report.housingCost;
+  report.otherOperations=report.rublesDelta-known;
+  state.dayReports=[report,...(Array.isArray(state.dayReports)?state.dayReports:[])].slice(0,60);
+  state.dayStartSnapshot=daySnapshotV24();
+  showToast(`День ${completedDay} завершён: ${signedValueV24(report.rublesDelta,' ₽')}`);
+  return report;
+}
+
 function nextDay(){
+  const completedDay=state.day;
+  const startSnapshot={...daySnapshotV24(),...(state.dayStartSnapshot||{})};
   state.day++;
   state.daysSurvived=state.day;
   state.hunger=clamp(state.hunger-Math.round(18*difficultyCfg().decay));
   state.happiness=clamp(state.happiness-Math.round(3*difficultyCfg().decay));
   const home=homes.find(x=>x.id===state.homeId)||homes[0];
   state.health=clamp(state.health+home.health);
+  let housingCost=0;
   if(home.daily){
     const daily=scaledCost(home.daily);
-    if(state.rubles>=daily)spend(daily);
+    if(state.rubles>=daily){spend(daily);housingCost=daily;}
     else{state.homeId='street';showToast('Не хватило денег на жильё — вы снова живёте под мостом');}
   }
   updateExchangeRate();
@@ -2454,6 +2494,7 @@ function nextDay(){
   recalcCareer();
   recalcChapter();
   checkEndingsV2();
+  saveDayReportV24(completedDay,startSnapshot,{assetsIncome,businessesIncome,housingCost});
 }
 
 function startElectionCampaign(){
@@ -2510,6 +2551,10 @@ function normalize(){
   state.rubles=Math.max(0,Number(state.rubles)||0);state.dollars=Math.max(0,Number(state.dollars)||0);state.chapterIndex=Math.max(0,Math.min(7,Number(state.chapterIndex)||0));
   state.inventory=state.inventory||{};state.businesses=state.businesses||{};Object.values(state.businesses).forEach(normalizeBusinessV2);state.relations=state.relations||{};charactersV2.forEach(c=>{if(state.relations[c.id]===undefined)state.relations[c.id]=0});
   state.characterVisits=state.characterVisits||{};state.jobLevels=state.jobLevels||{};state.lastDailyIncome={assets:0,businesses:0,total:0,...(state.lastDailyIncome||{})};state.pendingStories=Array.isArray(state.pendingStories)?state.pendingStories:[];state.endings=Array.isArray(state.endings)?state.endings:[];
+  state.dayReports=Array.isArray(state.dayReports)?state.dayReports.slice(0,60):[];
+  const fallbackDaySnapshot={rubles:state.rubles,dollars:state.dollars,health:state.health,hunger:state.hunger,happiness:state.happiness};
+  state.dayStartSnapshot={...fallbackDaySnapshot,...(state.dayStartSnapshot||{})};
+  ['rubles','dollars','health','hunger','happiness'].forEach(key=>state.dayStartSnapshot[key]=Number(state.dayStartSnapshot[key])||0);
   state.criticalHours={...defaultState.criticalHours,...(state.criticalHours||{})};state.criticalActive={...defaultState.criticalActive,...(state.criticalActive||{})};
   Object.keys(fatalStats).forEach(k=>state.criticalHours[k]=Math.max(0,Math.min(v2DeathLimit(),Number(state.criticalHours[k])||0)));
   state.exchangeRate=clampRate(Number(state.exchangeRate)||92);state.previousExchangeRate=clampRate(Number(state.previousExchangeRate)||state.exchangeRate);state.exchangeRateBias=Math.max(-2,Math.min(2,Number(state.exchangeRateBias)||0));
@@ -2609,6 +2654,15 @@ function renderProfile(){
   const dev=[['🎓 Образование',state.education],['⭐ Репутация',state.reputation],['🤝 Связи',state.connections],['📣 Популярность',state.popularity],['🏛️ Влияние',state.influence],['💪 Сила',state.strength],['🧠 Интеллект',state.intelligence],['🗣 Харизма',state.charisma],['💼 Предпринимательство',state.entrepreneurship],['🗳 Политика',state.politicsSkill],['🍀 Удача',state.luck],['📖 Глава',`${state.chapterIndex+1}/8`]];document.getElementById('developmentStats').innerHTML=dev.map(([n,v])=>`<div class="dev-card"><span>${n}</span><strong>${typeof v==='number'?Math.round(v):v}</strong></div>`).join('');
   document.getElementById('charactersList').innerHTML=charactersV2.map(c=>{const locked=state.chapterIndex<c.chapter,rel=state.relations[c.id]||0,pct=(rel+100)/2;return`<article class="buy-card ${locked?'unavailable':''}"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${c.icon}</div><div><div class="card-title">${c.name}</div><div class="card-subtitle">${locked?`Откроется в главе «${chaptersV2[c.chapter].name}»`:c.desc}</div></div></div><div class="price">${rel>0?'+':''}${rel}</div></div><div class="relation-bar"><div class="relation-fill" style="width:${pct}%"></div></div><button class="buy-button" data-character-v2="${c.id}" ${locked?'disabled':''}>Встретиться</button></article>`}).join('');
   document.getElementById('endingsList').innerHTML=endingCatalogV2.map(e=>`<div class="ending-card ${state.endings.includes(e.id)?'unlocked':''}">${state.endings.includes(e.id)?`${e.icon} ${e.name}`:'🔒 Не открыто'}</div>`).join('');
+  const reportsEl=document.getElementById('dayReportsList');
+  if(reportsEl){
+    const reports=Array.isArray(state.dayReports)?state.dayReports:[];
+    reportsEl.innerHTML=reports.length?reports.map(report=>{
+      const totalClass=report.rublesDelta>0?'positive':report.rublesDelta<0?'negative':'';
+      const stats=[['$',report.dollarsDelta],['❤️',report.healthDelta],['🍗',report.hungerDelta],['😊',report.happinessDelta]].filter(([,value])=>Number(value)!==0);
+      return `<article class="day-report-card"><div class="day-report-head"><div><div class="day-report-title">День ${report.day} завершён</div><div class="muted small">Баланс: ${fmt(report.balance||0)} ₽</div></div><div class="day-report-total ${totalClass}">${signedValueV24(report.rublesDelta,' ₽')}</div></div><div class="day-report-breakdown"><div class="day-report-line"><span>Активы</span><strong>${signedValueV24(report.assetsIncome,' ₽')}</strong></div><div class="day-report-line"><span>Бизнес</span><strong>${signedValueV24(report.businessesIncome,' ₽')}</strong></div><div class="day-report-line"><span>Жильё</span><strong>${report.housingCost?signedValueV24(-report.housingCost,' ₽'):'0 ₽'}</strong></div><div class="day-report-line"><span>Действия и покупки</span><strong>${signedValueV24(report.otherOperations,' ₽')}</strong></div></div>${stats.length?`<div class="day-report-stats">${stats.map(([icon,value])=>`<span class="day-report-stat">${icon} ${signedValueV24(value)}</span>`).join('')}</div>`:''}</article>`;
+    }).join(''):'<div class="day-report-empty">Первый отчёт появится после завершения игрового дня.</div>';
+  }
   const assetDaily=estimatedAssetIncomeV22(),businessDaily=estimatedBusinessIncomeV22(),combinedDaily=assetDaily+businessDaily,rows=[['Дней прожито',state.daysSurvived],['Действий выполнено',state.actionsDone],['Текущая работа',state.currentJob?.name||'нет'],['Опыт работы',state.jobExperience],['Предупреждения',`${state.jobWarnings}/3`],['Всего заработано',`${fmt(state.totalEarned)} ₽`],['Заработано в долларах',`${fmt(state.totalDollarEarned)} $`],['Всего потрачено',`${fmt(state.totalSpent)} ₽`],['Поражений на выборах',state.electionLosses],['Доход активов',`≈ ${fmt(assetDaily)} ₽/день`],['Доход бизнесов',`${fmt(businessDaily)} ₽/день`],['Общий ежедневный доход',`≈ ${fmt(combinedDaily)} ₽/день`],['Доход за прошлый день',`${fmt(state.lastDailyIncome?.total||0)} ₽`],['Текущее жильё',(homes.find(h=>h.id===state.homeId)||homes[0]).name]];document.getElementById('gameStats').innerHTML=rows.map(([a,b])=>`<div class="info-row"><span>${a}</span><strong>${b}</strong></div>`).join('');
 }
 
@@ -2631,14 +2685,14 @@ document.addEventListener('click',e=>{
   const char=e.target.closest('[data-character-v2]');if(char){interactCharacterV2(char.dataset.characterV2);return;}
 });
 
-document.getElementById('helpButton').onclick=()=>openModal('💡','Как играть в v2.3','Все механики v1.22 сохранены. Теперь есть 8 глав, 6 новых навыков, предметы, пять карьерных направлений, собеседования, рабочие ситуации, постоянные персонажи, сюжетные цепочки и бизнесы. Бизнес можно купить и улучшать до пятого уровня. Чем выше уровень, тем больше автоматический доход за игровой день. Дерева навыков нет: навыки растут непосредственно от действий.',[]);
+document.getElementById('helpButton').onclick=()=>openModal('💡','Как играть в v2.6','Все механики v1.22 сохранены. Теперь есть 8 глав, 6 новых навыков, предметы, пять карьерных направлений, собеседования, рабочие ситуации, постоянные персонажи, сюжетные цепочки и бизнесы. Бизнес можно купить и улучшать до пятого уровня. Чем выше уровень, тем больше автоматический доход за игровой день. Дерева навыков нет: навыки растут непосредственно от действий.',[]);
 
 if(!state.difficultyChosen)setTimeout(chooseDifficulty,50);
 
 requestAnimationFrame(syncFixedTopbar);
 
 
-// ========================= v2.3 fixes =========================
+// ========================= v2.4 compatibility and fixes =========================
 function roundedRequirementValueV23(key, source=state){
   const value=Number(source?.[key])||0;
   return ['rubles','dollars'].includes(key)?value:Math.round(value);
@@ -2756,7 +2810,7 @@ function performJobShift(){
   state[growthKey]=v2ClampSkill((state[growthKey]||0)+1+level*.25);
   if(job.branch==='media')state.popularity=clamp(state.popularity+Math.max(1,Math.round(level*.7)));
   advanceTime(state.inventory?.car?7:8);if(state.gameOver)return;
-  state.actionsDone++;recalcChapter();saveState();renderAll();showToast(`Смена завершена: +${fmt(pay)} ₽ · ${growthKey==='strength'?'сила':growthKey==='intelligence'?'интеллект':growthKey==='politicsSkill'?'политика':'предпринимательство'} повышен`);
+  state.actionsDone++;recalcChapter();saveState();renderAll();
   if(Math.random()<.28*difficultyCfg().eventRisk)setTimeout(triggerWorkEventV2,180);
   if(state.jobWarnings>=3){const lost=state.currentJob.name;state.currentJob=null;state.jobWarnings=0;state.jobExperience=0;openModal('📉','Увольнение',`После трёх предупреждений вы потеряли работу «${lost}».`,[]);}
 }
@@ -2840,7 +2894,1085 @@ const sanctionsEventV23=events.find(ev=>ev.id==='sanctions_rumor');if(sanctionsE
 // Reset vertical position whenever an action category is changed.
 document.addEventListener('click',event=>{if(event.target.closest('[data-category]'))window.scrollTo({top:0,behavior:'auto'});});
 
-document.getElementById('helpButton').onclick=()=>openModal('💡','Как играть в v2.3','Требования глав на главной и во вкладке «Карьера» синхронизированы. Показатели в требованиях сравниваются с теми же округлёнными значениями, которые видит игрок. Текущая работа первой показывается в разделе «Работа». Бизнесы стали прибыльнее, а случайные события имеют заметные удачные и неудачные последствия.',[]);
+
+// ========================= v2.5 journal and character bonuses =========================
+function relationTierV25(id){
+  const rel=Number(state.relations?.[id]||0);
+  if(rel>=60)return .10;
+  if(rel>=25)return .05;
+  if(rel<=-60)return -.07;
+  if(rel<=-25)return -.03;
+  return 0;
+}
+function relationChanceBonusV25(id){
+  const rel=Number(state.relations?.[id]||0);
+  if(rel>=60)return .06;
+  if(rel>=25)return .03;
+  if(rel<=-60)return -.05;
+  if(rel<=-25)return -.02;
+  return 0;
+}
+function characterBonusMetaV25(id){
+  const rate=relationTierV25(id);
+  const pct=Math.round(Math.abs(rate)*100);
+  const map={
+    misha:{label:'Доход от обычной работы',value:`${rate>0?'+':rate<0?'−':''}${pct}%`},
+    anna:{label:'Лечение и восстановление здоровья',value:`${rate>0?'+':rate<0?'−':''}${pct}%`},
+    sergey:{label:'Зарплата на постоянной работе',value:`${rate>0?'+':rate<0?'−':''}${pct}%`},
+    irina:{label:'Образование от учёбы',value:`${rate>0?'+':rate<0?'−':''}${pct}%`},
+    oleg:{label:'Доход всех бизнесов',value:`${rate>0?'+':rate<0?'−':''}${pct}%`},
+    marina:{label:'Популярность от медиа',value:`${rate>0?'+':rate<0?'−':''}${pct}%`},
+    viktor:{label:'Влияние от политических действий',value:`${rate>0?'+':rate<0?'−':''}${pct}%`},
+    roman:{label:'Шанс удачного случайного события',value:`${relationChanceBonusV25(id)>0?'+':relationChanceBonusV25(id)<0?'−':''}${Math.round(Math.abs(relationChanceBonusV25(id))*100)} п.п.`}
+  };
+  const meta=map[id]||{label:'Бонус отношений',value:'0%'};
+  return {...meta,rate};
+}
+function activeCharacterBonusCountV25(){return charactersV2.filter(c=>state.chapterIndex>=c.chapter&&relationTierV25(c.id)!==0).length;}
+function reportCardHtmlV25(report){
+  if(!report)return '<div class="day-report-empty">Первый отчёт появится после завершения игрового дня.</div>';
+  const totalClass=report.rublesDelta>0?'positive':report.rublesDelta<0?'negative':'';
+  const stats=[['$',report.dollarsDelta],['❤️',report.healthDelta],['🍗',report.hungerDelta],['😊',report.happinessDelta]].filter(([,value])=>Number(value)!==0);
+  return `<article class="day-report-card"><div class="day-report-head"><div><div class="day-report-title">День ${report.day} завершён</div><div class="muted small">Баланс: ${fmt(report.balance||0)} ₽</div></div><div class="day-report-total ${totalClass}">${signedValueV24(report.rublesDelta,' ₽')}</div></div><div class="day-report-breakdown"><div class="day-report-line"><span>Активы</span><strong>${signedValueV24(report.assetsIncome,' ₽')}</strong></div><div class="day-report-line"><span>Бизнес</span><strong>${signedValueV24(report.businessesIncome,' ₽')}</strong></div><div class="day-report-line"><span>Жильё</span><strong>${report.housingCost?signedValueV24(-report.housingCost,' ₽'):'0 ₽'}</strong></div><div class="day-report-line"><span>Действия и покупки</span><strong>${signedValueV24(report.otherOperations,' ₽')}</strong></div></div>${stats.length?`<div class="day-report-stats">${stats.map(([icon,value])=>`<span class="day-report-stat">${icon} ${signedValueV24(value)}</span>`).join('')}</div>`:''}</article>`;
+}
+
+function jobSalaryV22(job,branchId){
+  if(!job)return 0;
+  const branch=careerBranchesV2[branchId];
+  let pay=Number(job.salary||0)*difficultyCfg().income;
+  if(branch){const skill=Number(state[branch.skill]||0);pay*=1+Math.min(.45,skill*.005);}
+  if(branchId==='office'&&state.inventory?.suit)pay*=1.08;
+  if(branchId==='it'&&state.inventory?.laptop)pay*=1.12;
+  pay*=1+relationTierV25('sergey');
+  return Math.max(0,Math.round(pay));
+}
+function businessIncomeV2(b,owned){
+  const base=b.income*normalizeBusinessV2(owned).level*difficultyCfg().income;
+  return Math.max(0,Math.round(base*(1+relationTierV25('oleg'))));
+}
+function calculateReward(a){
+  let reward=random(a.min||0,a.max||0)*difficultyCfg().income;
+  reward*=1+Math.min(.45,relevantSkillForAction(a)*.0045);
+  if(state.inventory?.backpack&&['bottles','flyers'].includes(a.id))reward*=1.15;
+  if(state.inventory?.bike&&a.id==='courier')reward*=1.30;
+  if(state.inventory?.laptop&&a.currency==='USD')reward*=1.25;
+  if(a.cat==='work')reward*=1+relationTierV25('misha');
+  return Math.max(0,Math.round(reward));
+}
+function adjustedDelta(a,key){
+  let delta=Number(a[key])||0;
+  if(delta<0)delta*=difficultyCfg().decay;
+  if(a.cat==='work'&&key==='health'&&delta<0)delta*=Math.max(.68,1-state.strength*.0035);
+  if(a.cat==='media'&&key==='popularity'&&delta>0&&state.inventory?.phone)delta*=1.20;
+  if(a.cat==='health'&&key==='health'&&delta>0)delta*=1+relationTierV25('anna');
+  if(a.cat==='education'&&key==='education'&&delta>0)delta*=1+relationTierV25('irina');
+  if(a.cat==='media'&&key==='popularity'&&delta>0)delta*=1+relationTierV25('marina');
+  if(a.cat==='politics'&&key==='influence'&&delta>0)delta*=1+relationTierV25('viktor');
+  return delta<0?Math.ceil(delta):Math.round(delta);
+}
+function eventChoiceChanceV23(ev,index){
+  let base=eventOddsV23[ev.id]?.[index]??(index===0?.58:.66);
+  if(ev.id==='foreign_client'&&index===0)base=Math.min(.85,.45+roundedRequirementValueV23('education')/200);
+  if(ev.id==='protest'&&index===0)base=Math.min(.82,.4+roundedRequirementValueV23('popularity')/200+roundedRequirementValueV23('education')/300);
+  return Math.max(.05,Math.min(.95,adjustedChanceV23(base)+relationChanceBonusV25('roman')));
+}
+
+function renderCharactersV25(){
+  const el=document.getElementById('charactersList');if(!el)return;
+  el.innerHTML=charactersV2.map(c=>{
+    const locked=state.chapterIndex<c.chapter,rel=Number(state.relations[c.id]||0),pct=(rel+100)/2,meta=characterBonusMetaV25(c.id);
+    const badgeClass=meta.rate>0?'positive':meta.rate<0?'negative':'';
+    const next=rel<25?'Бонус откроется при отношении +25':rel<60?'Усиленный бонус откроется при +60':'Достигнут максимальный бонус';
+    return `<article class="buy-card ${locked?'unavailable':''}"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${c.icon}</div><div><div class="card-title">${c.name}</div><div class="card-subtitle">${locked?`Откроется в главе «${chaptersV2[c.chapter].name}»`:c.desc}</div></div></div><div class="character-bonus-badge ${badgeClass}">${meta.rate===0?'Нет бонуса':meta.value}</div></div><div class="relation-bar"><div class="relation-fill" style="width:${pct}%"></div></div><div class="character-bonus-note">${meta.label}. ${next}.</div><button class="buy-button" data-character-v2="${c.id}" ${locked?'disabled':''}>Встретиться · отношение ${rel>0?'+':''}${rel}</button></article>`;
+  }).join('');
+}
+function renderJournalV25(){
+  const reports=Array.isArray(state.dayReports)?state.dayReports:[];
+  const journal=document.getElementById('dayReportsList');if(journal)journal.innerHTML=reports.length?reports.map(reportCardHtmlV25).join(''):'<div class="day-report-empty">Первый отчёт появится после завершения игрового дня.</div>';
+}
+function renderProfile(){
+  document.getElementById('profileName').textContent=state.playerName;
+  document.getElementById('profileRank').innerHTML=`${chaptersV2[state.chapterIndex].name} · <span class="difficulty-badge">${difficultyCfg().name}</span>`;
+  const dev=[['🎓 Образование',state.education],['⭐ Репутация',state.reputation],['🤝 Связи',state.connections],['📣 Популярность',state.popularity],['🏛️ Влияние',state.influence],['💪 Сила',state.strength],['🧠 Интеллект',state.intelligence],['🗣 Харизма',state.charisma],['💼 Предпринимательство',state.entrepreneurship],['🗳 Политика',state.politicsSkill],['🍀 Удача',state.luck],['📖 Глава',`${state.chapterIndex+1}/8`]];
+  document.getElementById('developmentStats').innerHTML=dev.map(([n,v])=>`<div class="dev-card"><span>${n}</span><strong>${typeof v==='number'?Math.round(v):v}</strong></div>`).join('');
+  const last=document.getElementById('lastDayReport');if(last)last.innerHTML=reportCardHtmlV25(Array.isArray(state.dayReports)?state.dayReports[0]:null);
+  const unlocked=charactersV2.filter(c=>state.chapterIndex>=c.chapter);
+  const active=activeCharacterBonusCountV25();
+  const strongest=[...unlocked].sort((a,b)=>Math.abs(state.relations?.[b.id]||0)-Math.abs(state.relations?.[a.id]||0))[0];
+  const summary=document.getElementById('charactersSummary');if(summary)summary.innerHTML=`<div class="characters-summary-row"><span>Открыто персонажей</span><strong>${unlocked.length}/${charactersV2.length}</strong></div><div class="characters-summary-row"><span>Активных бонусов или штрафов</span><strong>${active}</strong></div><div class="characters-summary-row"><span>Самая сильная связь</span><strong>${strongest?`${strongest.icon} ${strongest.name}: ${(state.relations[strongest.id]||0)>0?'+':''}${state.relations[strongest.id]||0}`:'Пока нет'}</strong></div>`;
+  const count=document.getElementById('charactersBonusCount');if(count)count.textContent=`${active} ${active===1?'эффект':active>=2&&active<=4?'эффекта':'эффектов'}`;
+  document.getElementById('endingsList').innerHTML=endingCatalogV2.map(e=>`<div class="ending-card ${state.endings.includes(e.id)?'unlocked':''}">${state.endings.includes(e.id)?`${e.icon} ${e.name}`:'🔒 Не открыто'}</div>`).join('');
+  const assetDaily=estimatedAssetIncomeV22(),businessDaily=estimatedBusinessIncomeV22(),combinedDaily=assetDaily+businessDaily;
+  const rows=[['Дней прожито',state.daysSurvived],['Действий выполнено',state.actionsDone],['Текущая работа',state.currentJob?.name||'нет'],['Опыт работы',state.jobExperience],['Предупреждения',`${state.jobWarnings}/3`],['Всего заработано',`${fmt(state.totalEarned)} ₽`],['Заработано в долларах',`${fmt(state.totalDollarEarned)} $`],['Всего потрачено',`${fmt(state.totalSpent)} ₽`],['Поражений на выборах',state.electionLosses],['Доход активов',`≈ ${fmt(assetDaily)} ₽/день`],['Доход бизнесов',`${fmt(businessDaily)} ₽/день`],['Общий ежедневный доход',`≈ ${fmt(combinedDaily)} ₽/день`],['Доход за прошлый день',`${fmt(state.lastDailyIncome?.total||0)} ₽`],['Текущее жильё',(homes.find(h=>h.id===state.homeId)||homes[0]).name]];
+  document.getElementById('gameStats').innerHTML=rows.map(([a,b])=>`<div class="info-row"><span>${a}</span><strong>${b}</strong></div>`).join('');
+}
+function renderAll(){normalize();renderHeader();renderHome();renderActions();renderCareer();renderAssets();renderProfile();renderJournalV25();renderCharactersV25();saveState();}
+function switchScreen(target){
+  document.body.classList.toggle('home-screen',target==='home');
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.dataset.screen===target));
+  const navTarget=['housing','inventory','investments'].includes(target)?'home':['characters','journal'].includes(target)?'profile':target;
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.target===navTarget));
+  const titles={home:'Главная',actions:'Действия',career:'Карьера',housing:'Жильё',inventory:'Предметы',investments:'Активы',business:'Бизнес',journal:'Журнал дней',characters:'Персонажи',profile:'Профиль'};
+  document.getElementById('screenTitle').textContent=titles[target]||'Игра';
+  requestAnimationFrame(syncFixedTopbar);window.scrollTo({top:0,behavior:'smooth'});haptic();
+}
+
+document.getElementById('helpButton').onclick=()=>openModal('💡','Как играть в v2.6','Краткий итог показывается в начале нового дня. Последний отчёт виден в профиле, а полный журнал открывается оттуда по кнопке «Весь журнал». Персонажи находятся на отдельном экране и теперь дают постоянные бонусы или штрафы в зависимости от отношений.',[]);
 
 recalcChapter();
+renderAll();
+
+
+// ========================= v2.6 — slower, difficulty-aware progression =========================
+const balanceV26 = {
+  easy:     {income:1.12,cost:.90,decay:.85,eventRisk:.86,interview:10,deathHours:36,chapterTarget:.90,chapterTime:.80,progressGain:.88,skillGain:.92},
+  normal:   {income:1.00,cost:1.00,decay:1.00,eventRisk:1.00,interview:0, deathHours:24,chapterTarget:1.00,chapterTime:1.00,progressGain:.78,skillGain:.84},
+  hard:     {income:.88,cost:1.15,decay:1.15,eventRisk:1.12,interview:-8,deathHours:24,chapterTarget:1.08,chapterTime:1.20,progressGain:.70,skillGain:.76},
+  survival: {income:.78,cost:1.32,decay:1.28,eventRisk:1.22,interview:-14,deathHours:24,chapterTarget:1.15,chapterTime:1.40,progressGain:.62,skillGain:.68}
+};
+Object.entries(balanceV26).forEach(([id,values])=>Object.assign(difficultyModes[id],values));
+
+const chapterBaseDaysV26=[5,10,12,14,16,18,22];
+function minChapterDaysV26(index=state.chapterIndex){
+  if(index>=7)return 0;
+  return Math.max(1,Math.ceil((chapterBaseDaysV26[index]||1)*(difficultyCfg().chapterTime||1)));
+}
+function ensureChapterEntryV26(){
+  const currentDay=Math.max(1,Number(state.day)||1);
+  if(!Number.isFinite(Number(state.chapterEnteredDay))){
+    const credit=currentDay>1?Math.floor(minChapterDaysV26(state.chapterIndex)/2):0;
+    state.chapterEnteredDay=Math.max(1,currentDay-credit);
+  }
+  state.chapterEnteredDay=Math.max(1,Math.min(currentDay,Math.round(Number(state.chapterEnteredDay)||currentDay)));
+}
+function daysInChapterV26(source=state){
+  const entered=Math.max(1,Number(source.chapterEnteredDay)||Number(source.day)||1);
+  return Math.max(1,(Number(source.day)||1)-entered+1);
+}
+function scaledChapterTargetV26(base,type='stat'){
+  const multiplier=difficultyCfg().chapterTarget||1;
+  if(type==='money')return Math.max(10000,Math.ceil(base*multiplier/10000)*10000);
+  const raw=base*multiplier;
+  const rounded=multiplier<1?Math.floor(raw/5)*5:Math.ceil(raw/5)*5;
+  return Math.max(1,Math.min(95,rounded));
+}
+function totalBusinessLevelV26(source=state){
+  return Object.values(source.businesses||{}).reduce((sum,owned)=>sum+Math.max(1,Number(owned?.level)||1),0);
+}
+function currentJobLevelV26(source=state){return source.currentJob?Math.max(1,Number(source.currentJob.level)||1):0;}
+
+const chapterGoalTextsV26=[
+  'Закрепитесь на первом этапе: найдите жильё, постоянную работу и заработайте стартовый капитал.',
+  'Развивайте образование, основной навык и карьеру, чтобы накопить капитал для собственного дела.',
+  'Купите первый бизнес, улучшите его и подтвердите предпринимательские навыки.',
+  'Развивайте бизнес, репутацию, связи и популярность.',
+  'Постройте политическую карьеру и накопите влияние.',
+  'Подготовьте показатели к президентской кампании.',
+  'Подготовьте кампанию и победите на президентских выборах.',
+  'Основной путь завершён.'
+];
+chaptersV2.forEach((chapter,index)=>{chapter.goal=chapterGoalTextsV26[index]||chapter.goal;});
+
+chapterProgressDetailsV211=function(index=state.chapterIndex,source=state){
+  const businessCount=Object.keys(source.businesses||{}).length;
+  const businessLevels=totalBusinessLevelV26(source);
+  const strength=roundedRequirementValueV23('strength',source);
+  const intelligence=roundedRequirementValueV23('intelligence',source);
+  const charisma=roundedRequirementValueV23('charisma',source);
+  const bestCoreSkill=Math.max(strength,intelligence,charisma);
+  const bestCoreSkillName=bestCoreSkill===strength?'Сила':bestCoreSkill===intelligence?'Интеллект':'Харизма';
+  const jobName=source.currentJob?.name||'Без постоянной работы';
+  const elapsed=daysInChapterV26(source),minimum=minChapterDaysV26(index);
+  const row=(icon,title,current,target,done,screen,valueText)=>({icon,title,current,target,done,screen,valueText,pct:done?100:target?Math.max(0,Math.min(100,current/target*100)):0});
+  const timeRow=()=>row('🗓️',`Провести в главе не менее ${minimum} дней`,elapsed,minimum,elapsed>=minimum,'profile',`${Math.min(elapsed,minimum)} / ${minimum} дней`);
+  switch(index){
+    case 0:{
+      const earnedTarget=scaledChapterTargetV26(25000,'money');
+      return [
+        row('🏠','Купить любое жильё',source.homeId!=='street'?1:0,1,source.homeId!=='street','housing',(homes.find(h=>h.id===source.homeId)||homes[0]).name),
+        row('💼','Найти постоянную работу',source.currentJob?1:0,1,!!source.currentJob,'career',jobName),
+        row('₽',`Заработать всего ${fmt(earnedTarget)} ₽`,Number(source.totalEarned)||0,earnedTarget,(Number(source.totalEarned)||0)>=earnedTarget,'actions',`${fmt(source.totalEarned)} / ${fmt(earnedTarget)} ₽`),
+        timeRow()
+      ];
+    }
+    case 1:{
+      const educationTarget=scaledChapterTargetV26(30),skillTarget=scaledChapterTargetV26(32),cashTarget=scaledChapterTargetV26(250000,'money');
+      return [
+        row('🎓',`Получить образование ${educationTarget}`,roundedRequirementValueV23('education',source),educationTarget,roundedRequirementValueV23('education',source)>=educationTarget,'actions',`${roundedRequirementValueV23('education',source)} / ${educationTarget}`),
+        row('💪',`Развить силу, интеллект или харизму до ${skillTarget}`,bestCoreSkill,skillTarget,bestCoreSkill>=skillTarget,'actions',`${bestCoreSkillName}: ${bestCoreSkill} / ${skillTarget}`),
+        row('📈','Получить должность второго уровня или выше',currentJobLevelV26(source),2,currentJobLevelV26(source)>=2,'career',source.currentJob?`${jobName} · уровень ${currentJobLevelV26(source)}`:'Нет постоянной работы'),
+        row('₽',`Накопить ${fmt(cashTarget)} ₽`,Number(source.rubles)||0,cashTarget,(Number(source.rubles)||0)>=cashTarget,'actions',`${fmt(source.rubles)} / ${fmt(cashTarget)} ₽`),
+        timeRow()
+      ];
+    }
+    case 2:{
+      const entrepreneurshipTarget=scaledChapterTargetV26(15);
+      return [
+        row('🏢','Купить первый бизнес',businessCount,1,businessCount>=1,'business',businessCount?`Куплено бизнесов: ${businessCount}`:'Бизнесов пока нет'),
+        row('⬆️','Довести суммарный уровень бизнесов до 2',businessLevels,2,businessLevels>=2,'business',`${businessLevels} / 2`),
+        row('💼',`Предпринимательство ${entrepreneurshipTarget}`,roundedRequirementValueV23('entrepreneurship',source),entrepreneurshipTarget,roundedRequirementValueV23('entrepreneurship',source)>=entrepreneurshipTarget,'actions',`${roundedRequirementValueV23('entrepreneurship',source)} / ${entrepreneurshipTarget}`),
+        timeRow()
+      ];
+    }
+    case 3:{
+      const reputationTarget=scaledChapterTargetV26(45),connectionsTarget=scaledChapterTargetV26(35),popularityTarget=scaledChapterTargetV26(35);
+      return [
+        row('⭐',`Репутация ${reputationTarget}`,roundedRequirementValueV23('reputation',source),reputationTarget,roundedRequirementValueV23('reputation',source)>=reputationTarget,'actions',`${roundedRequirementValueV23('reputation',source)} / ${reputationTarget}`),
+        row('🤝',`Связи ${connectionsTarget}`,roundedRequirementValueV23('connections',source),connectionsTarget,roundedRequirementValueV23('connections',source)>=connectionsTarget,'actions',`${roundedRequirementValueV23('connections',source)} / ${connectionsTarget}`),
+        row('📣',`Популярность ${popularityTarget}`,roundedRequirementValueV23('popularity',source),popularityTarget,roundedRequirementValueV23('popularity',source)>=popularityTarget,'actions',`${roundedRequirementValueV23('popularity',source)} / ${popularityTarget}`),
+        row('🏢','Суммарный уровень бизнесов 4',businessLevels,4,businessLevels>=4,'business',`${businessLevels} / 4`),
+        timeRow()
+      ];
+    }
+    case 4:{
+      const influenceTarget=scaledChapterTargetV26(50),politicsTarget=scaledChapterTargetV26(35);
+      return [
+        row('🏛️','Стать депутатом или занять более высокую должность',source.currentJob?.branch==='politics'?currentJobLevelV26(source):0,3,source.currentJob?.branch==='politics'&&currentJobLevelV26(source)>=3,'career',jobName),
+        row('🏛',`Получить влияние ${influenceTarget}`,roundedRequirementValueV23('influence',source),influenceTarget,roundedRequirementValueV23('influence',source)>=influenceTarget,'actions',`${roundedRequirementValueV23('influence',source)} / ${influenceTarget}`),
+        row('🗳',`Навык политики ${politicsTarget}`,roundedRequirementValueV23('politicsSkill',source),politicsTarget,roundedRequirementValueV23('politicsSkill',source)>=politicsTarget,'actions',`${roundedRequirementValueV23('politicsSkill',source)} / ${politicsTarget}`),
+        timeRow()
+      ];
+    }
+    case 5:{
+      const popularityTarget=scaledChapterTargetV26(80),influenceTarget=scaledChapterTargetV26(70),politicsTarget=scaledChapterTargetV26(55),reputationTarget=scaledChapterTargetV26(60);
+      return [
+        row('📣',`Популярность ${popularityTarget}`,roundedRequirementValueV23('popularity',source),popularityTarget,roundedRequirementValueV23('popularity',source)>=popularityTarget,'actions',`${roundedRequirementValueV23('popularity',source)} / ${popularityTarget}`),
+        row('🏛',`Влияние ${influenceTarget}`,roundedRequirementValueV23('influence',source),influenceTarget,roundedRequirementValueV23('influence',source)>=influenceTarget,'actions',`${roundedRequirementValueV23('influence',source)} / ${influenceTarget}`),
+        row('🗳',`Навык политики ${politicsTarget}`,roundedRequirementValueV23('politicsSkill',source),politicsTarget,roundedRequirementValueV23('politicsSkill',source)>=politicsTarget,'actions',`${roundedRequirementValueV23('politicsSkill',source)} / ${politicsTarget}`),
+        row('⭐',`Репутация ${reputationTarget}`,roundedRequirementValueV23('reputation',source),reputationTarget,roundedRequirementValueV23('reputation',source)>=reputationTarget,'actions',`${roundedRequirementValueV23('reputation',source)} / ${reputationTarget}`),
+        timeRow()
+      ];
+    }
+    case 6:{
+      const popularityTarget=scaledChapterTargetV26(80),reputationTarget=scaledChapterTargetV26(65),influenceTarget=scaledChapterTargetV26(70),connectionsTarget=scaledChapterTargetV26(60),politicsTarget=scaledChapterTargetV26(55);
+      return [
+        row('📣',`Популярность ${popularityTarget}`,roundedRequirementValueV23('popularity',source),popularityTarget,roundedRequirementValueV23('popularity',source)>=popularityTarget,'actions',`${roundedRequirementValueV23('popularity',source)} / ${popularityTarget}`),
+        row('⭐',`Репутация ${reputationTarget}`,roundedRequirementValueV23('reputation',source),reputationTarget,roundedRequirementValueV23('reputation',source)>=reputationTarget,'actions',`${roundedRequirementValueV23('reputation',source)} / ${reputationTarget}`),
+        row('🏛',`Влияние ${influenceTarget}`,roundedRequirementValueV23('influence',source),influenceTarget,roundedRequirementValueV23('influence',source)>=influenceTarget,'actions',`${roundedRequirementValueV23('influence',source)} / ${influenceTarget}`),
+        row('🤝',`Связи ${connectionsTarget}`,roundedRequirementValueV23('connections',source),connectionsTarget,roundedRequirementValueV23('connections',source)>=connectionsTarget,'actions',`${roundedRequirementValueV23('connections',source)} / ${connectionsTarget}`),
+        row('🗳',`Навык политики ${politicsTarget}`,roundedRequirementValueV23('politicsSkill',source),politicsTarget,roundedRequirementValueV23('politicsSkill',source)>=politicsTarget,'actions',`${roundedRequirementValueV23('politicsSkill',source)} / ${politicsTarget}`),
+        timeRow(),
+        row('⭐','Победить на президентских выборах',source.president?1:0,1,!!source.president,'actions',source.president?'Победа одержана':'Проведите президентскую кампанию')
+      ];
+    }
+    default:return [row('🏆','Основной путь игры завершён',1,1,true,'profile','Вы стали президентом')];
+  }
+};
+chapterCompleteV23=function(index,source=state){return chapterProgressDetailsV211(index,source).every(item=>item.done);};
+chapterSummaryV23=function(index){return chapterProgressDetailsV211(index,state).map(item=>item.title).join(' · ');};
+recalcChapter=function(){
+  ensureChapterEntryV26();
+  if(state.chapterIndex>=chaptersV2.length-1)return;
+  if(chapterCompleteV23(state.chapterIndex,state)){
+    state.chapterIndex++;
+    state.chapterEnteredDay=Math.max(1,Number(state.day)||1);
+    showToast(`Новая глава: ${chaptersV2[state.chapterIndex].name}`);
+  }
+};
+
+const normalizeV25ForV26=normalize;
+normalize=function(){
+  normalizeV25ForV26();
+  ensureChapterEntryV26();
+};
+
+const adjustedDeltaV25ForV26=adjustedDelta;
+adjustedDelta=function(a,key){
+  const delta=adjustedDeltaV25ForV26(a,key);
+  if(delta>0&&['education','reputation','connections','popularity','influence'].includes(key)){
+    return Math.max(1,Math.round(delta*(difficultyCfg().progressGain||1)));
+  }
+  return delta;
+};
+const skillGainForActionV25ForV26=skillGainForAction;
+skillGainForAction=function(a){
+  const gains=skillGainForActionV25ForV26(a);
+  const multiplier=difficultyCfg().skillGain||1;
+  Object.keys(gains).forEach(key=>gains[key]=Math.max(.1,gains[key]*multiplier));
+  return gains;
+};
+performJobShift=function(){
+  const job=state.currentJob;if(!job){showToast('Сначала устройтесь на работу');return;}
+  const pay=jobSalaryV22(job,job.branch);earn(pay);
+  const level=job.level;
+  addValue('health',Math.ceil((-2-level*1.3)*difficultyCfg().decay));
+  addValue('hunger',Math.ceil((-9-level*2)*difficultyCfg().decay));
+  addValue('happiness',Math.ceil((-4-level)*difficultyCfg().decay));
+  state.jobExperience+=2+level;
+  const growthKey=jobGrowthSkillV23(job.branch);
+  state[growthKey]=v2ClampSkill((state[growthKey]||0)+(1+level*.25)*(difficultyCfg().skillGain||1));
+  if(job.branch==='media')state.popularity=clamp(state.popularity+Math.max(1,Math.round(level*.7*(difficultyCfg().progressGain||1))));
+  advanceTime(state.inventory?.car?7:8);if(state.gameOver)return;
+  state.actionsDone++;recalcChapter();saveState();renderAll();
+  if(Math.random()<.28*difficultyCfg().eventRisk)setTimeout(triggerWorkEventV2,180);
+  if(state.jobWarnings>=3){const lost=state.currentJob.name;state.currentJob=null;state.jobWarnings=0;state.jobExperience=0;openModal('📉','Увольнение',`После трёх предупреждений вы потеряли работу «${lost}».`,[]);}
+};
+
+const actionAvailabilityV25ForV26=actionAvailability;
+function electionReadinessV26(){return chapterProgressDetailsV211(6,state).filter(item=>!item.title.includes('Победить'));}
+const electionActionV26=actions.find(a=>a.id==='election');
+if(electionActionV26){
+  electionActionV26.req={career:8};
+  electionActionV26.desc='Президентская кампания доступна после выполнения всех требований главы.';
+}
+actionAvailability=function(a){
+  const base=actionAvailabilityV25ForV26(a);
+  if(base.disabled)return base;
+  if(a?.id==='election'){
+    const missing=electionReadinessV26().find(item=>!item.done);
+    if(missing)return{disabled:true,reason:`Сначала выполните: ${missing.title}`};
+  }
+  return base;
+};
+
+const helpV26=document.getElementById('helpButton');
+if(helpV26)helpV26.onclick=()=>openModal('💡','Как играть в v2.6','Каждая глава теперь требует не только показатели, но и минимальное количество игровых дней. На лёгкой сложности развитие быстрее и дешевле, на сложной и «Выживании» требования выше, доходы ниже, а показатели растут медленнее. Прогресс каждой цели виден внизу главного экрана и во вкладке «Карьера».',[]);
+
+ensureChapterEntryV26();
+normalize();
+renderAll();
+
+// ========================= v2.7 — logical chapter events, sequential careers, fixed election cost =========================
+const ELECTION_ENTRY_COST_V27 = 100000000;
+const electionActionV27 = actions.find(action => action.id === 'election');
+if (electionActionV27) {
+  electionActionV27.cost = ELECTION_ENTRY_COST_V27;
+  electionActionV27.desc = 'Президентская кампания стоимостью 100 000 000 ₽. Доступна после выполнения всех требований главы.';
+}
+
+// Entrepreneurship is earned only by purchasing assets and buying/upgrading businesses.
+const skillGainForActionV26BeforeV27 = skillGainForAction;
+skillGainForAction = function(action) {
+  const gain = skillGainForActionV26BeforeV27(action) || {};
+  delete gain.entrepreneurship;
+  if (action?.cat === 'work') {
+    const physical = ['beg','bottles','flyers','car_wash','loader','cleaner','courier','taxi'];
+    const intellectual = ['tutor','office','director','usd_freelance','usd_contract','foreign_contract','online_contract'];
+    delete gain.charisma;
+    if (physical.includes(action.id)) gain.strength = Math.max(Number(gain.strength)||0, Math.max(.5, Math.min(3,(action.hours||1)/3)));
+    else if (intellectual.includes(action.id)) gain.intelligence = Math.max(Number(gain.intelligence)||0, Math.max(.5, Math.min(3,(action.hours||1)/3)));
+    else gain.strength = Math.max(Number(gain.strength)||0, Math.max(.35, Math.min(2,(action.hours||1)/4)));
+  }
+  return gain;
+};
+jobGrowthSkillV23 = function(branchId) {
+  return {labor:'strength',office:'intelligence',it:'intelligence',media:'charisma',politics:'politicsSkill'}[branchId] || 'intelligence';
+};
+
+// Remove entrepreneurship rewards from old pending story outcomes for migrated saves.
+const triggerDueStoryV26BeforeV27 = triggerDueStoryV2;
+triggerDueStoryV2 = function() {
+  const before = Number(state.entrepreneurship)||0;
+  const triggered = triggerDueStoryV26BeforeV27();
+  if (triggered && Number(state.entrepreneurship) > before) {
+    state.entrepreneurship = before;
+    saveState();
+  }
+  return triggered;
+};
+
+function actionCostV27(action) {
+  return action?.id === 'election' ? ELECTION_ENTRY_COST_V27 : scaledCost(action?.cost || 0);
+}
+const actionAvailabilityV26BeforeV27 = actionAvailability;
+actionAvailability = function(action) {
+  const base = actionAvailabilityV26BeforeV27(action);
+  if (action?.id !== 'election') return base;
+  if (base.disabled && base.reason !== 'Не хватает рублей') return base;
+  if (state.rubles < ELECTION_ENTRY_COST_V27) return {disabled:true, reason:'Для участия нужно 100 000 000 ₽'};
+  return {disabled:false, reason:''};
+};
+const actionMoneyV26BeforeV27 = actionMoney;
+actionMoney = function(action) {
+  if (action?.id === 'election') return `−${fmt(ELECTION_ENTRY_COST_V27)} ₽`;
+  return actionMoneyV26BeforeV27(action);
+};
+performCustom = function(action) {
+  if (action.id === 'job_shift') { performJobShift(); return; }
+  const cost = actionCostV27(action);
+  if (cost && state.rubles < cost) { showToast(action.id === 'election' ? 'Для участия нужно 100 000 000 ₽' : 'Недостаточно рублей'); return; }
+  if (action.id === 'debate') {
+    spend(cost);
+    ['hunger','health','happiness'].forEach(key => addValue(key, adjustedDelta(action,key)));
+    const score = state.education + state.reputation + state.charisma*.45 + state.politicsSkill*.55 + random(-25,25);
+    if (score > 120) {
+      state.popularity = clamp(state.popularity+16);
+      state.influence = clamp(state.influence+9);
+      state.politicsSkill = v2ClampSkill(state.politicsSkill+2);
+      showToast('Вы блестяще выиграли дебаты');
+    } else {
+      state.popularity = clamp(state.popularity-5);
+      state.happiness = clamp(state.happiness-9);
+      showToast('Дебаты прошли неудачно');
+    }
+    advanceTime(effectiveActionHours(action));
+  }
+  if (action.id === 'election') {
+    if (state.chapterIndex < 6) { showToast('Сначала откройте главу «Кандидат в президенты»'); return; }
+    if (state.day < state.electionBanUntil) { showToast(`Повторные выборы доступны с ${state.electionBanUntil}-го дня`); return; }
+    spend(ELECTION_ENTRY_COST_V27);
+    ['hunger','health','happiness'].forEach(key => addValue(key, adjustedDelta(action,key)));
+    suppressRandomEvent = true;
+    advanceTime(effectiveActionHours(action));
+    suppressRandomEvent = false;
+    if (state.gameOver) return;
+    startElectionCampaign();
+  }
+  if (state.gameOver) return;
+  state.actionsDone++;
+  recalcCareer();
+  recalcChapter();
+  saveState();
+  renderAll();
+  haptic('medium');
+};
+
+// Career positions must be completed in order inside every branch.
+function previousCareerStepDoneV27(branchId, level) {
+  if (level <= 1) return true;
+  const completed = Math.max(Number(state.jobLevels?.[branchId])||0, state.currentJob?.branch===branchId ? Number(state.currentJob.level)||0 : 0);
+  return completed >= level-1;
+}
+const normalizeV26BeforeV27 = normalize;
+normalize = function() {
+  normalizeV26BeforeV27();
+  state.jobLevels = state.jobLevels || {};
+  if (state.currentJob?.branch) {
+    state.jobLevels[state.currentJob.branch] = Math.max(Number(state.jobLevels[state.currentJob.branch])||0, Number(state.currentJob.level)||1);
+  }
+};
+interviewJob = function(branchId, level) {
+  if (state.gameOver) return;
+  const branch = careerBranchesV2[branchId];
+  const job = branch?.jobs[level-1];
+  if (!job) return;
+  if (!previousCareerStepDoneV27(branchId,level)) {
+    const previous = branch.jobs[level-2]?.name || 'предыдущую должность';
+    showToast(`Сначала получите должность «${previous}»`);
+    return;
+  }
+  if (!requirementMet(job.req)) { showToast(`Нужно: ${requirementText(job.req)}`); return; }
+  const relation = (state.relations.sergey||0)*.12 + (state.relations.irina||0)*.08;
+  const skill = state[branch.skill]||0;
+  let probability = 48 + difficultyCfg().interview + skill*.45 + state.charisma*.22 + state.reputation*.18 + relation;
+  if (state.inventory?.suit) probability += 15;
+  if ((state.jobLevels[branchId]||0) >= level-1) probability += 7;
+  probability = Math.max(12,Math.min(92,probability));
+  advanceTime(state.inventory?.car?2:3);
+  if (state.gameOver) return;
+  if (Math.random()*100 < probability) {
+    state.currentJob = {branch:branchId,level,name:job.name,salary:job.salary};
+    state.jobLevels[branchId] = Math.max(state.jobLevels[branchId]||0,level);
+    state.jobExperience = 0;
+    state.jobWarnings = 0;
+    state.connections = clamp(state.connections+1);
+    showToast(`Вы приняты: ${job.name}`);
+  } else {
+    state.happiness = clamp(state.happiness-5);
+    showToast('На собеседовании отказали');
+  }
+  recalcChapter();
+  saveState();
+  renderAll();
+};
+
+const renderCareerV26BeforeV27 = renderCareer;
+renderCareer = function() {
+  renderCareerV26BeforeV27();
+  const branchId = state.selectedBranch;
+  const branch = careerBranchesV2[branchId] || careerBranchesV2.labor;
+  const job = state.currentJob;
+  const list = document.getElementById('jobList');
+  if (!list) return;
+  list.innerHTML = branch.jobs.map((position,index) => {
+    const level = index+1;
+    const current = job?.branch===branchId && Number(job.level)===level;
+    const previousDone = previousCareerStepDoneV27(branchId,level);
+    const requirementsDone = requirementMet(position.req);
+    const available = previousDone && requirementsDone;
+    const salary = jobSalaryV22(position,branchId);
+    let subtitle = 'Шанс зависит от навыков, репутации и одежды.';
+    if (!previousDone) subtitle = `Сначала получите должность «${branch.jobs[index-1].name}»`;
+    else if (!requirementsDone) subtitle = `Нужно: ${requirementText(position.req)}`;
+    return `<article class="buy-card ${!available?'unavailable':''}"><div class="card-top"><div class="card-title-wrap"><div class="card-icon">${branch.icon}</div><div><div class="card-title">${position.name}</div><div class="card-subtitle">${subtitle}</div></div></div><div class="price">${fmt(salary)} ₽</div></div><button class="buy-button" data-interview="${branchId}:${level}" ${!available||current?'disabled':''}>${current?'Текущая работа':'Пройти собеседование'}</button></article>`;
+  }).join('');
+};
+
+// Detailed progress buttons open the correct action category.
+const chapterProgressDetailsV26BeforeV27 = chapterProgressDetailsV211;
+chapterProgressDetailsV211 = function(index=state.chapterIndex, source=state) {
+  const rows = chapterProgressDetailsV26BeforeV27(index,source);
+  rows.forEach(row => {
+    const title = String(row.title||'').toLowerCase();
+    if (row.screen !== 'actions') return;
+    if (title.includes('образован') || title.includes('интеллект')) row.category='education';
+    else if (title.includes('популярност') || title.includes('харизм')) row.category='media';
+    else if (title.includes('политик') || title.includes('влияни') || title.includes('репутац') || title.includes('связ')) row.category='politics';
+    else if (title.includes('сил')) row.category='work';
+    else if (title.includes('руб') || title.includes('заработ') || title.includes('накоп')) row.category='work';
+    else row.category='work';
+  });
+  return rows;
+};
+const renderHomeV26BeforeV27 = renderHome;
+renderHome = function() {
+  renderHomeV26BeforeV27();
+  const rows = chapterProgressDetailsV211();
+  document.querySelectorAll('#chapterRequirements .chapter-requirement').forEach((button,index) => {
+    if (rows[index]?.category) button.dataset.progressCategory = rows[index].category;
+  });
+};
+document.addEventListener('click', event => {
+  const button = event.target.closest('[data-progress-category]');
+  if (!button) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  selectedCategory = button.dataset.progressCategory;
+  switchScreen('actions');
+  renderActions();
+  window.scrollTo({top:0,behavior:'auto'});
+}, true);
+
+// Chapter-specific random events. One hidden roll determines the whole result.
+const eventMoneyScaleV27 = [2500,12000,50000,200000,800000,3000000,12000000,30000000];
+function eventAmountV27(factor, positive=true) {
+  const base = eventMoneyScaleV27[Math.max(0,Math.min(7,Number(state.chapterIndex)||0))] || 2500;
+  const difficulty = positive ? difficultyCfg().income : difficultyCfg().cost;
+  return Math.max(100,Math.round(base*Math.abs(factor)*difficulty*(.9+Math.random()*.2)));
+}
+function eventChanceV27(base) {
+  return Math.max(.08,Math.min(.92,adjustedChanceV23(base)+relationChanceBonusV25('roman')));
+}
+function applyEventEffectsV27(effects={}) {
+  const changes=[];
+  if (effects.rublesFactor) {
+    const positive=effects.rublesFactor>0;
+    const amount=eventAmountV27(effects.rublesFactor,positive);
+    if (positive) { earn(amount); changes.push(`+${fmt(amount)} ₽`); }
+    else { const loss=Math.min(state.rubles,amount); if(loss)spend(loss); changes.push(`−${fmt(loss)} ₽`); }
+  }
+  if (effects.dollars) {
+    const before=state.dollars;
+    if (effects.dollars>0) earnDollars(effects.dollars); else state.dollars=Math.max(0,state.dollars+effects.dollars);
+    const actual=Math.round(state.dollars-before);
+    if(actual)changes.push(`${actual>0?'+':''}${actual} $`);
+  }
+  const labels={health:'здоровье',hunger:'сытость',happiness:'счастье',education:'образование',reputation:'репутация',connections:'связи',popularity:'популярность',influence:'влияние',strength:'сила',intelligence:'интеллект',charisma:'харизма',politicsSkill:'политика',luck:'удача'};
+  Object.entries(labels).forEach(([key,label])=>{
+    if (!effects[key]) return;
+    const before=Number(state[key])||0;
+    if (['strength','intelligence','charisma','politicsSkill','luck'].includes(key)) state[key]=v2ClampSkill(before+effects[key]);
+    else state[key]=clamp(before+effects[key]);
+    const actual=Math.round((state[key]-before)*10)/10;
+    if(actual)changes.push(`${label} ${actual>0?'+':''}${actual}`);
+  });
+  if (effects.exchangeRateBias) state.exchangeRateBias=Math.max(-2,Math.min(2,(state.exchangeRateBias||0)+effects.exchangeRateBias));
+  return changes.join(' · ');
+}
+function eventOutcomeV27(message,effects) {
+  const summary=applyEventEffectsV27(effects);
+  return summary?`${message} ${summary}.`:message;
+}
+const chapterEventsV27 = [
+  [
+    {id:'v27_cold',icon:'🤒',title:'Сильная простуда',text:'Температура растёт, а ночевать всё равно приходится в плохих условиях.',choices:[
+      {text:'Купить лекарства',chance:.80,good:{message:'Лечение помогло, состояние стабилизировалось.',effects:{rublesFactor:-.18,health:14,happiness:2}},bad:{message:'Лекарство не подошло, болезнь усилилась.',effects:{rublesFactor:-.18,health:-12,happiness:-6}}},
+      {text:'Перетерпеть',chance:.32,good:{message:'Организм справился без лекарств.',effects:{health:5,hunger:-4}},bad:{message:'Болезнь сильно вас подкосила.',effects:{health:-18,happiness:-8,hunger:-6}}}
+    ]},
+    {id:'v27_social_center',icon:'🏢',title:'Очередь в социальный центр',text:'Можно потратить день на оформление документов или поискать подработку рядом.',choices:[
+      {text:'Дождаться приёма',chance:.72,good:{message:'Документы приняли, а сотрудник подсказал полезный контакт.',effects:{reputation:6,connections:3,rublesFactor:.25}},bad:{message:'Приём отменили после долгого ожидания.',effects:{happiness:-7,hunger:-6}}},
+      {text:'Искать подработку',chance:.58,good:{message:'Удалось найти срочную разгрузку.',effects:{rublesFactor:.65,strength:1,health:-3,hunger:-5}},bad:{message:'Работы не нашлось, день потрачен впустую.',effects:{happiness:-6,hunger:-5}}}
+    ]},
+    {id:'v27_scrap',icon:'♻️',title:'Склад выброшенной техники',text:'Во дворе лежит куча старой техники, но место выглядит небезопасно.',choices:[
+      {text:'Разобрать технику',chance:.64,good:{message:'Внутри нашлись цветные металлы.',effects:{rublesFactor:.75,strength:1,health:-2}},bad:{message:'Вы порезались и ничего ценного не нашли.',effects:{health:-11,hunger:-7}}},
+      {text:'Не рисковать',chance:.76,good:{message:'Позже выяснилось, что склад охранялся. Вы избежали проблем.',effects:{reputation:2,happiness:2}},bad:{message:'Другой человек забрал всё ценное прямо у вас на глазах.',effects:{happiness:-5}}}
+    ]}
+  ],
+  [
+    {id:'v27_overtime',icon:'🕒',title:'Неожиданная сверхурочная смена',text:'Начальник просит остаться до ночи за повышенную оплату.',choices:[
+      {text:'Согласиться',chance:.70,good:{message:'Смена прошла успешно и хорошо оплатилась.',effects:{rublesFactor:1.0,strength:1,health:-5,hunger:-8}},bad:{message:'Из-за ошибки смену не оплатили полностью.',effects:{rublesFactor:.25,health:-12,happiness:-8,hunger:-9}}},
+      {text:'Отказаться',chance:.65,good:{message:'Начальник отнёсся с пониманием.',effects:{happiness:5,reputation:2}},bad:{message:'Отказ испортил отношения на работе.',effects:{reputation:-5,connections:-2}}}
+    ]},
+    {id:'v27_landlord',icon:'🔑',title:'Разговор с хозяином жилья',text:'Хозяин хочет повысить плату и требует решение сегодня.',choices:[
+      {text:'Договориться',chance:.62,good:{message:'Удалось сохранить старую цену и получить отсрочку.',effects:{rublesFactor:.45,connections:3,charisma:1}},bad:{message:'Переговоры провалились, пришлось доплатить.',effects:{rublesFactor:-.75,happiness:-7}}},
+      {text:'Заплатить без спора',chance:.85,good:{message:'Хозяин оценил надёжность и сделал скидку.',effects:{rublesFactor:-.30,reputation:3}},bad:{message:'После оплаты появились новые требования.',effects:{rublesFactor:-.55,happiness:-4}}}
+    ]},
+    {id:'v27_course_offer',icon:'📚',title:'Вечерние курсы',text:'Коллега предлагает место на недорогом вечернем курсе.',choices:[
+      {text:'Записаться',chance:.74,good:{message:'Курс оказался полезным и практичным.',effects:{rublesFactor:-.25,education:8,intelligence:2,happiness:3}},bad:{message:'Программа оказалась устаревшей.',effects:{rublesFactor:-.25,education:2,happiness:-6}}},
+      {text:'Взять дополнительную смену',chance:.63,good:{message:'Смена принесла хороший заработок.',effects:{rublesFactor:.70,health:-5,hunger:-7}},bad:{message:'Заказ отменили в последний момент.',effects:{happiness:-6,hunger:-4}}}
+    ]}
+  ],
+  [
+    {id:'v27_freelance',icon:'💻',title:'Срочный заказ специалисту',text:'Клиент готов хорошо заплатить, но сроки почти нереальные.',choices:[
+      {text:'Взять заказ',chance:.68,good:{message:'Вы сдали проект вовремя и получили рекомендацию.',effects:{rublesFactor:1.15,reputation:5,intelligence:2,happiness:-3}},bad:{message:'Срок сорван, клиент потребовал компенсацию.',effects:{rublesFactor:-.70,reputation:-8,happiness:-7}}},
+      {text:'Передать знакомому',chance:.72,good:{message:'Знакомый справился и поделился оплатой.',effects:{rublesFactor:.45,connections:6,reputation:2}},bad:{message:'Знакомый провалил проект и обвинил вас.',effects:{connections:-5,reputation:-5}}}
+    ]},
+    {id:'v27_certificate',icon:'📜',title:'Профессиональная сертификация',text:'Можно оплатить экзамен и подтвердить квалификацию.',choices:[
+      {text:'Сдать экзамен',chance:.70,good:{message:'Экзамен сдан с высоким результатом.',effects:{rublesFactor:-.30,education:10,intelligence:3,reputation:5}},bad:{message:'Экзамен провален, взнос не возвращается.',effects:{rublesFactor:-.30,happiness:-8}}},
+      {text:'Подготовиться позже',chance:.58,good:{message:'Самостоятельная подготовка дала новые знания.',effects:{education:4,intelligence:2}},bad:{message:'Вы отложили подготовку и потеряли мотивацию.',effects:{happiness:-5}}}
+    ]},
+    {id:'v27_data_leak',icon:'🔐',title:'Утечка рабочих данных',text:'Вы заметили ошибку в системе раньше остальных.',choices:[
+      {text:'Сразу сообщить',chance:.78,good:{message:'Проблему устранили, руководство вас отметило.',effects:{reputation:8,connections:4,intelligence:2}},bad:{message:'Руководство попыталось сделать вас виноватым.',effects:{reputation:-6,happiness:-7}}},
+      {text:'Исправить самостоятельно',chance:.55,good:{message:'Вы незаметно закрыли уязвимость.',effects:{rublesFactor:.35,intelligence:4,reputation:3}},bad:{message:'Исправление сломало часть системы.',effects:{rublesFactor:-.45,reputation:-8}}}
+    ]}
+  ],
+  [
+    {id:'v27_supplier',icon:'🚚',title:'Новый поставщик',text:'Поставщик обещает снизить расходы, но отзывов о нём почти нет.',choices:[
+      {text:'Заключить договор',chance:.66,good:{message:'Поставки пришли вовремя и бизнес сэкономил.',effects:{rublesFactor:1.0,connections:5,reputation:3}},bad:{message:'Поставщик сорвал сроки и исчез с предоплатой.',effects:{rublesFactor:-.90,reputation:-6}}},
+      {text:'Проверить документы',chance:.76,good:{message:'Проверка выявила скрытые риски.',effects:{reputation:5,intelligence:2,connections:2}},bad:{message:'Пока вы проверяли, выгодное предложение ушло конкуренту.',effects:{happiness:-6}}}
+    ]},
+    {id:'v27_big_order',icon:'📦',title:'Крупный заказ',text:'Новый клиент предлагает заказ, который заметно больше обычного.',choices:[
+      {text:'Принять заказ',chance:.64,good:{message:'Команда справилась, прибыль оказалась рекордной.',effects:{rublesFactor:1.35,reputation:7,connections:4}},bad:{message:'Сроки сорваны, пришлось вернуть аванс.',effects:{rublesFactor:-1.0,reputation:-9,happiness:-6}}},
+      {text:'Взять только часть',chance:.82,good:{message:'Умеренный заказ выполнен без проблем.',effects:{rublesFactor:.65,reputation:4}},bad:{message:'Клиент остался недоволен ограничениями.',effects:{reputation:-4,connections:-2}}}
+    ]},
+    {id:'v27_inspection',icon:'🧾',title:'Внеплановая проверка бизнеса',text:'Инспектор просит документы и внимательно изучает расходы.',choices:[
+      {text:'Показать документы',chance:.77,good:{message:'Нарушений не нашли.',effects:{reputation:6,influence:2}},bad:{message:'Нашлась ошибка в отчётности.',effects:{rublesFactor:-.75,reputation:-5}}},
+      {text:'Нанять консультанта',chance:.86,good:{message:'Консультант быстро урегулировал вопросы.',effects:{rublesFactor:-.30,connections:4,reputation:3}},bad:{message:'Консультант оказался непрофессионалом.',effects:{rublesFactor:-.55,happiness:-5}}}
+    ]}
+  ],
+  [
+    {id:'v27_charity',icon:'🤲',title:'Крупная благотворительная акция',text:'Организаторы предлагают стать главным спонсором городского проекта.',choices:[
+      {text:'Стать спонсором',chance:.73,good:{message:'Акция получила широкий отклик.',effects:{rublesFactor:-.55,reputation:10,popularity:8,influence:4}},bad:{message:'Организаторов обвинили в непрозрачных расходах.',effects:{rublesFactor:-.55,reputation:-8}}},
+      {text:'Помочь организацией',chance:.68,good:{message:'Ваши связи помогли провести акцию без крупных затрат.',effects:{connections:7,reputation:6,popularity:4}},bad:{message:'Организация сорвалась, вас публично раскритиковали.',effects:{reputation:-7,popularity:-5}}}
+    ]},
+    {id:'v27_investment',icon:'📈',title:'Закрытый инвестиционный раунд',text:'Вам предлагают войти в перспективный проект до публичного запуска.',choices:[
+      {text:'Инвестировать',chance:.58,good:{message:'Проект резко вырос в цене.',effects:{rublesFactor:1.4,connections:5,influence:3}},bad:{message:'Проект закрылся после первых проверок.',effects:{rublesFactor:-1.1,reputation:-4}}},
+      {text:'Провести аудит',chance:.74,good:{message:'Аудит обнаружил завышенные прогнозы.',effects:{rublesFactor:.25,reputation:5,intelligence:2}},bad:{message:'Аудит затянулся, возможность была упущена.',effects:{happiness:-6}}}
+    ]},
+    {id:'v27_scandal',icon:'📰',title:'Медийный скандал',text:'В сети распространяют обвинения против одного из ваших проектов.',choices:[
+      {text:'Ответить публично',chance:.65,good:{message:'Факты убедили аудиторию.',effects:{popularity:10,reputation:8,influence:3}},bad:{message:'Ответ только усилил скандал.',effects:{popularity:-12,reputation:-10,rublesFactor:-.35}}},
+      {text:'Урегулировать тихо',chance:.72,good:{message:'История быстро исчезла из новостей.',effects:{rublesFactor:-.25,reputation:4}},bad:{message:'Молчание сочли признанием вины.',effects:{popularity:-8,reputation:-7}}}
+    ]}
+  ],
+  [
+    {id:'v27_city_project',icon:'🏙️',title:'Городской проект',text:'Нужно выбрать подрядчика для важного общественного объекта.',choices:[
+      {text:'Провести открытый конкурс',chance:.76,good:{message:'Конкурс прошёл честно, проект поддержали жители.',effects:{reputation:9,popularity:8,influence:5}},bad:{message:'Конкурс затянулся и вызвал недовольство.',effects:{popularity:-6,influence:-3,rublesFactor:-.30}}},
+      {text:'Выбрать знакомую компанию',chance:.55,good:{message:'Знакомая команда быстро выполнила работу.',effects:{connections:8,influence:5,rublesFactor:.35}},bad:{message:'Связь с подрядчиком стала поводом для расследования.',effects:{reputation:-12,popularity:-8,rublesFactor:-.65}}}
+    ]},
+    {id:'v27_lobby',icon:'🤝',title:'Предложение лоббиста',text:'Бизнес-группа обещает поддержку в обмен на выгодное решение.',choices:[
+      {text:'Принять поддержку',chance:.57,good:{message:'Сделка укрепила ваши позиции.',effects:{rublesFactor:1.0,connections:9,influence:6,reputation:-3}},bad:{message:'Переговоры попали в прессу.',effects:{reputation:-13,popularity:-9,rublesFactor:-.45}}},
+      {text:'Отказаться публично',chance:.70,good:{message:'Принципиальность повысила доверие.',effects:{reputation:10,popularity:7,politicsSkill:2}},bad:{message:'Группа начала кампанию против вас.',effects:{connections:-7,influence:-5,popularity:-4}}}
+    ]},
+    {id:'v27_hearing',icon:'🎙️',title:'Публичные слушания',text:'Жители требуют немедленного ответа на неудобные вопросы.',choices:[
+      {text:'Выйти к людям',chance:.68,good:{message:'Вы убедительно ответили на вопросы.',effects:{popularity:11,reputation:7,politicsSkill:3,charisma:2}},bad:{message:'Ответы показались неубедительными.',effects:{popularity:-10,reputation:-7,happiness:-6}}},
+      {text:'Отправить представителя',chance:.62,good:{message:'Представитель спокойно снял напряжение.',effects:{connections:5,influence:3}},bad:{message:'Люди решили, что вы избегаете ответственности.',effects:{popularity:-8,reputation:-5}}}
+    ]}
+  ],
+  [
+    {id:'v27_sponsor',icon:'💰',title:'Предвыборный спонсор',text:'Крупный предприниматель предлагает профинансировать часть кампании.',choices:[
+      {text:'Принять деньги',chance:.60,good:{message:'Финансирование прошло законно и усилило кампанию.',effects:{rublesFactor:1.15,connections:8,influence:5}},bad:{message:'У спонсора нашли сомнительные связи.',effects:{reputation:-14,popularity:-10,rublesFactor:-.55}}},
+      {text:'Отказаться и объявить сбор',chance:.67,good:{message:'Сторонники собрали значительную сумму.',effects:{rublesFactor:.65,popularity:10,reputation:8}},bad:{message:'Сбор оказался слабее ожиданий.',effects:{rublesFactor:-.20,happiness:-7}}}
+    ]},
+    {id:'v27_leak',icon:'📂',title:'Утечка из штаба',text:'В сеть попал внутренний документ с черновиками стратегии.',choices:[
+      {text:'Признать ошибку',chance:.72,good:{message:'Открытость помогла быстро закрыть тему.',effects:{reputation:9,popularity:5,politicsSkill:2}},bad:{message:'Оппоненты использовали признание против вас.',effects:{reputation:-10,popularity:-8}}},
+      {text:'Обвинить соперника',chance:.54,good:{message:'Следы действительно привели к штабу соперника.',effects:{influence:7,popularity:8}},bad:{message:'Обвинение оказалось бездоказательным.',effects:{reputation:-13,popularity:-9,rublesFactor:-.30}}}
+    ]},
+    {id:'v27_rally',icon:'📣',title:'Главный митинг кампании',text:'Площадка переполнена, но техника работает нестабильно.',choices:[
+      {text:'Выступать без подготовки',chance:.61,good:{message:'Импровизация стала главным моментом кампании.',effects:{popularity:14,influence:7,charisma:3}},bad:{message:'Сбой сорвал выступление.',effects:{popularity:-12,happiness:-8,rublesFactor:-.35}}},
+      {text:'Перенести мероприятие',chance:.74,good:{message:'Новая площадка оказалась ещё лучше.',effects:{popularity:8,reputation:5,rublesFactor:-.20}},bad:{message:'Часть сторонников не пришла повторно.',effects:{popularity:-7,rublesFactor:-.25}}}
+    ]}
+  ],
+  [
+    {id:'v27_infrastructure',icon:'🏗️',title:'Национальный инфраструктурный проект',text:'Проект может ускорить экономику, но требует огромных расходов.',choices:[
+      {text:'Запустить проект',chance:.66,good:{message:'Стройка началась вовремя и получила поддержку.',effects:{rublesFactor:1.0,popularity:12,influence:8,reputation:6}},bad:{message:'Смета выросла, сроки сорваны.',effects:{rublesFactor:-1.35,popularity:-11,reputation:-9}}},
+      {text:'Сначала провести аудит',chance:.78,good:{message:'Аудит сократил будущие расходы.',effects:{rublesFactor:.45,reputation:7,intelligence:2}},bad:{message:'Из-за задержки регионы потеряли доверие.',effects:{popularity:-7,influence:-4}}}
+    ]},
+    {id:'v27_diplomacy',icon:'🌍',title:'Дипломатический кризис',text:'Партнёрская страна требует срочной реакции.',choices:[
+      {text:'Провести переговоры лично',chance:.69,good:{message:'Переговоры завершились выгодным соглашением.',effects:{rublesFactor:1.15,influence:10,reputation:8,connections:6}},bad:{message:'Переговоры зашли в тупик.',effects:{rublesFactor:-.75,influence:-8,reputation:-7}}},
+      {text:'Ввести ответные меры',chance:.56,good:{message:'Жёсткая позиция заставила партнёров уступить.',effects:{influence:9,popularity:8,rublesFactor:.55}},bad:{message:'Ответные меры ударили по экономике.',effects:{rublesFactor:-1.1,popularity:-9,happiness:-6}}}
+    ]},
+    {id:'v27_address',icon:'📺',title:'Обращение к стране',text:'Нужно объяснить населению непопулярные решения правительства.',choices:[
+      {text:'Говорить прямо',chance:.71,good:{message:'Честный разговор укрепил доверие.',effects:{popularity:13,reputation:10,charisma:3}},bad:{message:'Объяснение прозвучало слишком жёстко.',effects:{popularity:-11,happiness:-7}}},
+      {text:'Сделать оптимистичную речь',chance:.62,good:{message:'Речь вернула людям уверенность.',effects:{popularity:10,happiness:8,influence:5}},bad:{message:'Обещания показались пустыми.',effects:{reputation:-12,popularity:-8}}}
+    ]}
+  ]
+];
+function showEventToastV27(text) {
+  const el=document.getElementById('toast');
+  if(!el)return;
+  el.textContent=text;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),4200);
+}
+triggerRandomEvent = function() {
+  const chapter=Math.max(0,Math.min(7,Number(state.chapterIndex)||0));
+  let pool=(chapterEventsV27[chapter]||[]).filter(event=>event.id!==state.lastEventId);
+  if(!pool.length)pool=chapterEventsV27[chapter]||[];
+  if(!pool.length)return;
+  const event=pool[random(0,pool.length-1)];
+  state.lastEventId=event.id;
+  openModal(event.icon,event.title,event.text,event.choices.map(choice=>({
+    text:choice.text,
+    onClick:()=>{
+      closeModal(true);
+      const success=Math.random()<eventChanceV27(choice.chance);
+      const outcome=success?choice.good:choice.bad;
+      const result=eventOutcomeV27(outcome.message,outcome.effects);
+      state.luck=v2ClampSkill(state.luck+.2);
+      normalize();
+      recalcChapter();
+      const critical=syncCriticalStates();
+      saveState();
+      renderAll();
+      showEventToastV27(result);
+      if(critical.length)setTimeout(()=>showCriticalWarning(critical),250);
+    }
+  })),{locked:true});
+};
+
+// Re-render with v2.7 rules and update help copy.
+const helpV27=document.getElementById('helpButton');
+if(helpV27)helpV27.onclick=()=>openModal('💡','Как играть в v2.7','Случайные события теперь зависят от текущей главы. Каждый из двух вариантов может дать хороший или плохой результат, но вероятность скрыта. Должности внутри каждой карьерной ветки открываются только по порядку. Предпринимательство растёт только при покупке активов, покупке бизнеса и его улучшении. Участие в президентских выборах стоит 100 000 000 ₽.',[]);
+normalize();
+renderAll();
+
+
+// ========================= v2.8.1 — onboarding, action categories and full in-game guide =========================
+const savedBeforeV28 = (() => {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); }
+  catch { return null; }
+})();
+if (savedBeforeV28 && !Object.prototype.hasOwnProperty.call(savedBeforeV28,'tutorialCompleted')) {
+  // Existing players are not forced through onboarding after updating.
+  state.tutorialCompleted = true;
+  state.tutorialStep = 0;
+}
+if (typeof state.tutorialCompleted !== 'boolean') state.tutorialCompleted = !!state.difficultyChosen;
+if (!Number.isFinite(Number(state.tutorialStep))) state.tutorialStep = 0;
+saveState();
+
+const tutorialStepsV28 = [
+  {
+    screen:'home', selector:null, icon:'👋', title:'Добро пожаловать',
+    text:'Ваша цель — пройти путь от жизни на улице до президентства. Обучение покажет основные экраны и ничего не потратит.'
+  },
+  {
+    screen:'home', selector:'.hero-card', icon:'🧔', title:'Текущая глава',
+    text:'Глава показывает ваш этап жизни. Новые работы, события и возможности открываются постепенно.'
+  },
+  {
+    screen:'home', selector:'.money-grid', icon:'💰', title:'Деньги и валюта',
+    text:'Рубли нужны почти для всех покупок. Доллары можно заработать на зарубежных заказах или купить через обмен валют.'
+  },
+  {
+    screen:'home', selector:'#statsList', icon:'❤️', title:'Главные показатели',
+    text:'Следите за здоровьем, сытостью и счастьем. Если любой показатель непрерывно останется на нуле слишком долго, персонаж погибнет.'
+  },
+  {
+    screen:'actions', category:'food', selector:'#categoryRow', icon:'⚡', title:'Меню действий',
+    text:'Здесь находятся семь разделов действий. Сейчас обучение по очереди покажет, для чего нужен каждый из них.'
+  },
+  {
+    screen:'actions', category:'food', selector:'#categoryRow [data-category="food"]', icon:'🍔', title:'Раздел «Еда»',
+    text:'Еда восстанавливает сытость. Дешёвые варианты слабее и иногда вредят здоровью, а дорогие дают больше сытости и дополнительных бонусов.'
+  },
+  {
+    screen:'actions', category:'work', selector:'#categoryRow [data-category="work"]', icon:'💼', title:'Раздел «Работа»',
+    text:'Здесь находятся разовые подработки и смена на постоянной работе. Работа приносит деньги, расходует состояние и развивает подходящий навык.'
+  },
+  {
+    screen:'actions', category:'health', selector:'#categoryRow [data-category="health"]', icon:'❤️', title:'Раздел «Здоровье»',
+    text:'Лечение восстанавливает здоровье. Более эффективные способы стоят дороже, а некоторые также требуют времени или подходящей главы.'
+  },
+  {
+    screen:'actions', category:'fun', selector:'#categoryRow [data-category="fun"]', icon:'🎮', title:'Раздел «Развлечения»',
+    text:'Развлечения повышают счастье, но обычно тратят деньги, время, сытость и иногда здоровье. Используйте их, когда настроение падает.'
+  },
+  {
+    screen:'actions', category:'education', selector:'#categoryRow [data-category="education"]', icon:'🎓', title:'Раздел «Учёба»',
+    text:'Учёба повышает образование и интеллект. Эти показатели нужны для новых глав, квалифицированных должностей и более выгодной работы.'
+  },
+  {
+    screen:'actions', category:'media', selector:'#categoryRow [data-category="media"]', icon:'📣', title:'Раздел «Популярность»',
+    text:'Медийные действия повышают популярность, а часть из них развивает харизму и репутацию. Они особенно важны в поздних главах.'
+  },
+  {
+    screen:'actions', category:'politics', selector:'#categoryRow [data-category="politics"]', icon:'🏛️', title:'Раздел «Политика»',
+    text:'Политические действия дают влияние, связи и навык политики. Новые действия этого раздела открываются по мере продвижения по главам.'
+  },
+  {
+    screen:'actions', category:'food', selector:'#actionsList .action-card', icon:'🍞', title:'Карточки действий',
+    text:'Нажмите на карточку, чтобы выполнить действие. На ней указаны время, стоимость или доход, требования и изменения показателей.'
+  },
+  {
+    screen:'home', selector:'.property-hub-panel', icon:'🏠', title:'Жильё, предметы и активы',
+    text:'Жильё помогает пройти главы, предметы дают постоянные бонусы, а активы приносят ежедневный доход.'
+  },
+  {
+    screen:'career', selector:'.career-summary', icon:'📈', title:'Карьера',
+    text:'Во вкладке «Карьера» видны текущая ступень, работа и доступные должности. Должности внутри ветки открываются по порядку.'
+  },
+  {
+    screen:'business', selector:'#businessList', icon:'🏢', title:'Бизнес',
+    text:'Бизнесы можно покупать и улучшать. Они автоматически приносят доход каждый новый игровой день.'
+  },
+  {
+    screen:'profile', selector:'#developmentStats', icon:'🧠', title:'Развитие персонажа',
+    text:'В профиле собраны образование, репутация, связи, популярность, влияние и шесть навыков. Они открывают новые возможности.'
+  },
+  {
+    screen:'home', selector:'.detailed-goal-panel', icon:'🎯', title:'Прогресс главы',
+    text:'Внизу главной страницы показаны все условия перехода. Нажатие на невыполненную цель ведёт к подходящему разделу.'
+  },
+  {
+    screen:'home', selector:'#helpButton', icon:'?', title:'Справка всегда рядом',
+    text:'Кнопка «?» открывает полную справку: где получать каждый показатель, как работают главы, карьера, бизнес, события и выборы.'
+  }
+];
+
+function ensureV28Ui(){
+  if(!document.getElementById('tutorialOverlayV28')){
+    const tutorial=document.createElement('div');
+    tutorial.id='tutorialOverlayV28';
+    tutorial.className='tutorial-overlay-v28 hidden';
+    tutorial.innerHTML=`
+      <div class="tutorial-spotlight-v28" id="tutorialSpotlightV28"></div>
+      <section class="tutorial-card-v28" role="dialog" aria-modal="true" aria-labelledby="tutorialTitleV28">
+        <div class="tutorial-top-v28">
+          <span class="tutorial-counter-v28" id="tutorialCounterV28">1/${tutorialStepsV28.length}</span>
+          <button class="tutorial-skip-v28" id="tutorialSkipV28">Пропустить</button>
+        </div>
+        <div class="tutorial-icon-v28" id="tutorialIconV28">👋</div>
+        <h2 id="tutorialTitleV28">Добро пожаловать</h2>
+        <p id="tutorialTextV28"></p>
+        <div class="tutorial-actions-v28">
+          <button class="tutorial-back-v28" id="tutorialBackV28">Назад</button>
+          <button class="tutorial-next-v28" id="tutorialNextV28">Далее</button>
+        </div>
+      </section>`;
+    document.body.appendChild(tutorial);
+    document.getElementById('tutorialSkipV28').onclick=()=>finishTutorialV28(true);
+    document.getElementById('tutorialBackV28').onclick=()=>showTutorialStepV28(Math.max(0,(Number(state.tutorialStep)||0)-1));
+    document.getElementById('tutorialNextV28').onclick=()=>{
+      const next=(Number(state.tutorialStep)||0)+1;
+      if(next>=tutorialStepsV28.length) finishTutorialV28(false);
+      else showTutorialStepV28(next);
+    };
+  }
+  if(!document.getElementById('helpCenterV28')){
+    const help=document.createElement('div');
+    help.id='helpCenterV28';
+    help.className='help-center-backdrop-v28 hidden';
+    help.innerHTML=`
+      <section class="help-center-v28" role="dialog" aria-modal="true" aria-labelledby="helpTitleV28">
+        <header class="help-header-v28">
+          <div><small>Справочник v2.8.1</small><h2 id="helpTitleV28">Как устроена игра</h2></div>
+          <button class="help-close-v28" id="helpCloseV28" aria-label="Закрыть">×</button>
+        </header>
+        <nav class="help-nav-v28" aria-label="Разделы справки">
+          <button data-help-jump="help-start">Начало</button>
+          <button data-help-jump="help-stats">Показатели</button>
+          <button data-help-jump="help-skills">Навыки</button>
+          <button data-help-jump="help-career">Карьера</button>
+          <button data-help-jump="help-money">Доход</button>
+          <button data-help-jump="help-election">Выборы</button>
+        </nav>
+        <div class="help-content-v28">
+          <section class="help-section-v28" id="help-start">
+            <h3>🎯 Цель и главы</h3>
+            <p>Главная цель — пройти 8 глав: <strong>Бомж → Работяга → Специалист → Предприниматель → Влиятельный человек → Политик → Кандидат в президенты → Президент</strong>.</p>
+            <p>Для перехода нужно выполнить все условия подробного прогресса и провести в главе минимальное количество дней. Требования зависят от сложности.</p>
+          </section>
+          <section class="help-section-v28">
+            <h3>🕒 Время и выживание</h3>
+            <p>Каждое действие занимает игровые часы. После завершения суток начисляются доходы активов и бизнесов, списываются расходы жилья и создаётся дневной отчёт.</p>
+            <p>Энергии нет. Ограничители — время, деньги и три показателя состояния. На лёгкой сложности смерть наступает после 36 часов непрерывного нуля, на остальных — после 24 часов.</p>
+          </section>
+          <section class="help-section-v28" id="help-stats">
+            <h3>❤️ Состояние</h3>
+            <div class="help-grid-v28">
+              <div><b>Здоровье</b><span>Повышают лечение, качественная еда, хорошее жильё и удачные события. Снижают тяжёлая работа, болезни и рискованные действия.</span></div>
+              <div><b>Сытость</b><span>Повышается едой. Почти любая работа и долгое действие расходуют сытость.</span></div>
+              <div><b>Счастье</b><span>Повышают развлечения, комфорт, хорошие события и успехи. Снижают неудачи, тяжёлая работа и плохие условия.</span></div>
+            </div>
+          </section>
+          <section class="help-section-v28">
+            <h3>📊 Основные очки развития</h3>
+            <div class="help-grid-v28">
+              <div><b>Образование</b><span>Получается во вкладке «Учёба», на курсах и в некоторых событиях. Нужно для квалифицированных должностей.</span></div>
+              <div><b>Репутация</b><span>Растёт от честных решений, общественно полезных действий и удачных событий. Важна для карьеры и политики.</span></div>
+              <div><b>Связи</b><span>Даются знакомствами, персонажами, карьерными и политическими событиями. Открывают возможности и усиливают выборы.</span></div>
+              <div><b>Популярность</b><span>Основной источник — категория «Популярность», медийная работа и публичные события.</span></div>
+              <div><b>Влияние</b><span>Получается политическими действиями, должностями и событиями поздних глав.</span></div>
+            </div>
+          </section>
+          <section class="help-section-v28" id="help-skills">
+            <h3>🧠 Шесть навыков</h3>
+            <div class="help-grid-v28">
+              <div><b>Сила</b><span>Растёт от физической работы и тяжёлых действий. Нужна для ветки физического труда.</span></div>
+              <div><b>Интеллект</b><span>Растёт от учёбы, интеллектуальной и офисной работы. Нужен для квалифицированных профессий и IT.</span></div>
+              <div><b>Харизма</b><span>Растёт от медийной работы, выступлений и отдельных событий. Помогает на собеседованиях и в общении.</span></div>
+              <div><b>Предпринимательство</b><span>Растёт только при покупке активов, покупке бизнеса и улучшении бизнеса.</span></div>
+              <div><b>Политика</b><span>Растёт от политической работы, политических действий и событий. Нужна для поздних глав и выборов.</span></div>
+              <div><b>Удача</b><span>Медленно растёт после случайных событий и редких удачных возможностей. Незаметно улучшает отдельные исходы.</span></div>
+            </div>
+          </section>
+          <section class="help-section-v28" id="help-career">
+            <h3>💼 Работа и карьера</h3>
+            <p>Работу получают через собеседование. Учитываются требования должности, навык ветки, харизма, репутация, персонажи и сложность.</p>
+            <p>Должности внутри каждой ветки открываются строго по порядку. Текущая работа показывается первой в категории «Работа». Смена приносит зарплату и развивает профильный навык, но не предпринимательство.</p>
+            <p>Три предупреждения приводят к увольнению. Зарплата одной должности одинакова во всех местах интерфейса, но отличается между уровнями сложности.</p>
+          </section>
+          <section class="help-section-v28" id="help-money">
+            <h3>💰 Деньги, имущество и доход</h3>
+            <div class="help-grid-v28">
+              <div><b>Рубли</b><span>Работа, подработки, активы, бизнесы и события. Тратятся на еду, жильё, предметы, развитие и выборы.</span></div>
+              <div><b>Доллары</b><span>Зарубежные заказы и обмен валют. Курс меняется каждый день; купить и продать валюту можно на главной.</span></div>
+              <div><b>Жильё</b><span>Даёт комфорт и ежедневные расходы. Первое жильё необходимо для выхода из начальной главы.</span></div>
+              <div><b>Предметы</b><span>Дают постоянные бонусы и открывают отдельные профессии или действия.</span></div>
+              <div><b>Активы</b><span>Покупаются за рубли, ежедневно приносят пассивный доход и повышают предпринимательство.</span></div>
+              <div><b>Бизнесы</b><span>Их можно купить и улучшать до 5 уровня. Доход растёт вместе с уровнем и начисляется ежедневно.</span></div>
+            </div>
+          </section>
+          <section class="help-section-v28">
+            <h3>🎲 Случайные события и персонажи</h3>
+            <p>У каждой главы собственные события. В каждом событии два решения, и любое может привести к хорошему или плохому результату. Вероятности скрыты.</p>
+            <p>Отношения с персонажами дают бонусы при +25 и усиленные бонусы при +60. Отрицательные отношения дают штрафы. Персонажи открываются постепенно.</p>
+          </section>
+          <section class="help-section-v28">
+            <h3>📒 Дневные отчёты</h3>
+            <p>В начале нового дня появляется краткий итог предыдущего дня. Последний отчёт виден в профиле, полный журнал открывается кнопкой «Весь журнал».</p>
+          </section>
+          <section class="help-section-v28" id="help-election">
+            <h3>🗳️ Президентские выборы</h3>
+            <p>Выборы открываются в главе кандидата после выполнения требований. Участие стоит <strong>100 000 000 ₽</strong>.</p>
+            <p>Кампания состоит из нескольких решений. На итог влияют популярность, репутация, влияние, связи, политика, бюджет, предметы, персонажи и выбранные стратегии.</p>
+          </section>
+          <section class="help-section-v28">
+            <h3>🎮 Сложность и сохранение</h3>
+            <p><strong>Лёгкая:</strong> выше доходы, ниже цены и медленнее ухудшение состояния. <strong>Нормальная:</strong> рекомендуемый баланс. <strong>Сложная:</strong> ниже доходы и выше требования. <strong>Выживание:</strong> самая жёсткая экономика и наиболее долгое прохождение.</p>
+            <p>Прогресс сохраняется автоматически в браузере. Сохранения GitHub Pages и локальной версии раздельные, потому что они открываются с разных адресов.</p>
+          </section>
+        </div>
+        <footer class="help-footer-v28">
+          <button class="help-tutorial-v28" id="helpTutorialV28">Пройти обучение заново</button>
+          <button class="help-done-v28" id="helpDoneV28">Понятно</button>
+        </footer>
+      </section>`;
+    document.body.appendChild(help);
+    document.getElementById('helpCloseV28').onclick=closeHelpCenterV28;
+    document.getElementById('helpDoneV28').onclick=closeHelpCenterV28;
+    document.getElementById('helpTutorialV28').onclick=()=>{closeHelpCenterV28();startTutorialV28(true);};
+    help.addEventListener('click',event=>{
+      const jump=event.target.closest('[data-help-jump]');
+      if(jump){document.getElementById(jump.dataset.helpJump)?.scrollIntoView({behavior:'smooth',block:'start'});}
+      else if(event.target===help)closeHelpCenterV28();
+    });
+  }
+}
+
+function openHelpCenterV28(){
+  ensureV28Ui();
+  const help=document.getElementById('helpCenterV28');
+  help.classList.remove('hidden');
+  document.body.classList.add('overlay-open-v28');
+  help.querySelector('.help-content-v28').scrollTop=0;
+}
+function closeHelpCenterV28(){
+  document.getElementById('helpCenterV28')?.classList.add('hidden');
+  document.body.classList.remove('overlay-open-v28');
+}
+function startTutorialV28(force=false){
+  if(state.gameOver || (!force && state.tutorialCompleted) || !state.difficultyChosen)return;
+  ensureV28Ui();
+  state.tutorialStep=0;
+  saveState();
+  document.getElementById('tutorialOverlayV28').classList.remove('hidden');
+  document.body.classList.add('overlay-open-v28');
+  showTutorialStepV28(0);
+}
+function finishTutorialV28(skipped=false){
+  state.tutorialCompleted=true;
+  state.tutorialStep=0;
+  saveState();
+  document.getElementById('tutorialOverlayV28')?.classList.add('hidden');
+  document.body.classList.remove('overlay-open-v28');
+  switchScreen('home');
+  if(!skipped)showToast('Обучение завершено');
+}
+function scheduleTutorialV28(){
+  let attempts=0;
+  const wait=()=>{
+    if(state.tutorialCompleted || !state.difficultyChosen)return;
+    const modalOpen=!document.getElementById('modalBackdrop')?.classList.contains('hidden');
+    if(!modalOpen){startTutorialV28();return;}
+    if(attempts++<240)setTimeout(wait,250);
+  };
+  setTimeout(wait,250);
+}
+function tutorialTargetV28(step){
+  if(!step?.selector)return null;
+  return document.querySelector(step.selector);
+}
+function positionTutorialV28(){
+  const overlay=document.getElementById('tutorialOverlayV28');
+  if(!overlay || overlay.classList.contains('hidden'))return;
+  const step=tutorialStepsV28[Number(state.tutorialStep)||0];
+  const target=tutorialTargetV28(step);
+  const spot=document.getElementById('tutorialSpotlightV28');
+  if(!target){
+    spot.classList.add('no-target');
+    spot.style.cssText='';
+    return;
+  }
+  const rect=target.getBoundingClientRect();
+  const pad=7;
+  spot.classList.remove('no-target');
+  spot.style.left=`${Math.max(7,rect.left-pad)}px`;
+  spot.style.top=`${Math.max(7,rect.top-pad)}px`;
+  spot.style.width=`${Math.max(24,Math.min(window.innerWidth-14,rect.width+pad*2))}px`;
+  spot.style.height=`${Math.max(24,Math.min(window.innerHeight-14,rect.height+pad*2))}px`;
+  spot.style.borderRadius=getComputedStyle(target).borderRadius||'18px';
+}
+function showTutorialStepV28(index){
+  ensureV28Ui();
+  const safe=Math.max(0,Math.min(tutorialStepsV28.length-1,index));
+  state.tutorialStep=safe;
+  saveState();
+  const step=tutorialStepsV28[safe];
+  if(step.category){selectedCategory=step.category;renderActions();}
+  if(step.screen)switchScreen(step.screen);
+  document.getElementById('tutorialCounterV28').textContent=`${safe+1}/${tutorialStepsV28.length}`;
+  document.getElementById('tutorialIconV28').textContent=step.icon;
+  document.getElementById('tutorialTitleV28').textContent=step.title;
+  document.getElementById('tutorialTextV28').textContent=step.text;
+  document.getElementById('tutorialBackV28').disabled=safe===0;
+  document.getElementById('tutorialNextV28').textContent=safe===tutorialStepsV28.length-1?'Завершить':'Далее';
+  setTimeout(()=>{
+    const target=tutorialTargetV28(step);
+    if(target){
+      if(target.closest('#categoryRow')){
+        target.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'});
+      }else if(!target.closest('.topbar') && !target.closest('.bottom-nav')){
+        target.scrollIntoView({behavior:'auto',block:'center',inline:'nearest'});
+      }
+    }
+    requestAnimationFrame(positionTutorialV28);
+  },80);
+}
+
+const setDifficultyV28Base=setDifficulty;
+setDifficulty=function(id){
+  setDifficultyV28Base(id);
+  scheduleTutorialV28();
+};
+const restartGameV28Base=restartGame;
+restartGame=function(){
+  restartGameV28Base();
+  state.tutorialCompleted=false;
+  state.tutorialStep=0;
+  saveState();
+};
+
+ensureV28Ui();
+const helpButtonV28=document.getElementById('helpButton');
+if(helpButtonV28)helpButtonV28.onclick=openHelpCenterV28;
+window.addEventListener('resize',()=>requestAnimationFrame(positionTutorialV28));
+window.addEventListener('scroll',()=>requestAnimationFrame(positionTutorialV28),{passive:true});
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&!document.getElementById('helpCenterV28')?.classList.contains('hidden'))closeHelpCenterV28();
+});
+if(state.difficultyChosen && !state.tutorialCompleted)scheduleTutorialV28();
+normalize();
 renderAll();

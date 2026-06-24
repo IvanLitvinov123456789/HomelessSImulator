@@ -7,11 +7,11 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#f6c945" />
-  <title>От бомжа до президента — v2.3</title>
+  <title>От бомжа до президента — v2.8.1</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=2.3-20260623" />
+  <link rel="stylesheet" href="./styles.css?v=2.8.1-20260624" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body class="home-screen">
@@ -184,6 +184,24 @@
         </article>
       </section>
 
+
+      <section class="screen" data-screen="journal">
+        <button class="subscreen-back" data-go="profile">← В профиль</button>
+        <article class="panel">
+          <div class="section-head"><h3>Журнал дней</h3><span class="muted small">Последние 60 отчётов</span></div>
+          <div class="day-report-list" id="dayReportsList"></div>
+        </article>
+      </section>
+
+      <section class="screen" data-screen="characters">
+        <button class="subscreen-back" data-go="profile">← В профиль</button>
+        <article class="panel">
+          <div class="section-head"><h3>Персонажи</h3><span class="muted small">Отношения дают постоянные бонусы</span></div>
+          <div class="character-bonus-guide">При отношении от +25 открывается небольшой бонус, от +60 — усиленный. Отрицательные отношения дают штраф.</div>
+          <div class="cards-list compact" id="charactersList"></div>
+        </article>
+      </section>
+
       <section class="screen" data-screen="profile">
         <article class="panel profile-card">
           <div class="profile-avatar" id="profileAvatar">🧔</div>
@@ -194,9 +212,14 @@
           <h3>Развитие</h3>
           <div class="dev-grid" id="developmentStats"></div>
         </article>
-        <article class="panel">
-          <div class="section-head"><h3>Персонажи</h3><span class="muted small">Отношение от −100 до +100</span></div>
-          <div class="cards-list compact" id="charactersList"></div>
+        <article class="panel latest-day-panel">
+          <div class="section-head"><h3>Последний завершённый день</h3><button class="inline-link-button" data-go="journal">Весь журнал ›</button></div>
+          <div class="day-report-list" id="lastDayReport"></div>
+        </article>
+        <article class="panel characters-summary-panel">
+          <div class="section-head"><h3>Связи и персонажи</h3><span class="pill" id="charactersBonusCount">0 бонусов</span></div>
+          <div class="characters-summary" id="charactersSummary"></div>
+          <button class="buy-button" data-go="characters">Открыть персонажей</button>
         </article>
         <article class="panel">
           <div class="section-head"><h3>Достижения</h3><span class="muted small">Открываются за разные пути прохождения</span></div>
@@ -232,6 +255,6 @@
     </div>
   </div>
 
-  <script src="./app.js?v=2.3-20260623"></script>
+  <script src="./app.js?v=2.8.1-20260624"></script>
 </body>
 </html>
