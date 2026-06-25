@@ -446,7 +446,7 @@ const actions = [
     "hours": 1,
     "health": 10,
     "happiness": 6,
-    "cost": 150,
+    "cost": 350,
     "hunger": -3
   },
   {
@@ -4640,6 +4640,179 @@ if (helpMoneyV2814 && !helpMoneyV2814.querySelector('[data-v2814-help]')) {
   note.textContent = 'В разделах «Еда», «Здоровье» и «Развлечения» есть по одному бесплатному действию. Учёба, медиа и политика требуют рублей, а работа приносит доход без отдельной платы за действие.';
   helpMoneyV2814.appendChild(note);
 }
+
+normalize();
+saveState();
+renderAll();
+
+// ========================= v2.10 — casino in Entertainment =========================
+const CASINO_ZERO_CHANCE_V210 = 0.04;
+const CASINO_RED_CHANCE_V210 = 0.48;
+const CASINO_PAYOUTS_V210 = Object.freeze({ red: 2, black: 2, zero: 25 });
+const CASINO_LABELS_V210 = Object.freeze({ red: 'Красное', black: 'Чёрное', zero: 'Зеро' });
+
+if (!actions.some(item => item.id === 'casino_v210')) {
+  actions.push({
+    id: 'casino_v210',
+    cat: 'fun',
+    icon: '🎰',
+    name: 'Депнуть в казик',
+    desc: 'Открыть казино и поставить игровые рубли на красное, чёрное или зеро.',
+    custom: 'casino_v210'
+  });
+}
+
+function casinoSafeBetV210(value) {
+  const bet = Math.floor(Number(value));
+  return Number.isFinite(bet) ? bet : 0;
+}
+
+function casinoPanelHtmlV210(bet = 100, result = null) {
+  const balance = Math.max(0, Math.floor(Number(state.rubles) || 0));
+  const safeBet = Math.max(1, Math.min(Math.max(1, balance), casinoSafeBetV210(bet) || 100));
+  const resultHtml = result ? `
+    <div class="casino-result-v210 ${result.won ? 'win' : 'loss'}">
+      <div class="casino-result-ball-v210 ${result.outcome}">${result.outcome === 'zero' ? '0' : result.outcome === 'red' ? 'R' : 'B'}</div>
+      <div>
+        <strong>Выпало: ${CASINO_LABELS_V210[result.outcome]}</strong>
+        <span>${result.message}</span>
+      </div>
+    </div>` : '';
+
+  return `<div class="casino-panel-v210">
+    <div class="casino-balance-v210">Баланс: <strong>${fmt(balance)} ₽</strong></div>
+    <div class="casino-odds-v210">
+      <span>🔴 Красное — 48% · ×2</span>
+      <span>⚫ Чёрное — 48% · ×2</span>
+      <span>🟢 Зеро — 4% · ×25</span>
+    </div>
+    ${resultHtml}
+    <label class="casino-bet-label-v210" for="casinoBetV210">Размер ставки</label>
+    <div class="casino-bet-wrap-v210">
+      <input id="casinoBetV210" class="casino-bet-input-v210" type="number" min="1" max="${Math.max(1, balance)}" step="1" value="${safeBet}" inputmode="numeric" aria-label="Размер ставки в рублях" />
+      <span>₽</span>
+    </div>
+    <div class="casino-quick-v210">
+      <button type="button" data-casino-quick-v210="100">100</button>
+      <button type="button" data-casino-quick-v210="1000">1 000</button>
+      <button type="button" data-casino-quick-v210="10000">10 000</button>
+      <button type="button" data-casino-quick-v210="all">Всё</button>
+    </div>
+    <div class="casino-bets-v210">
+      <button type="button" class="casino-bet-button-v210 red" data-casino-bet-v210="red">Поставить на красное</button>
+      <button type="button" class="casino-bet-button-v210 black" data-casino-bet-v210="black">Поставить на чёрное</button>
+      <button type="button" class="casino-bet-button-v210 zero" data-casino-bet-v210="zero">Поставить на зеро</button>
+    </div>
+    <p class="casino-note-v210">Используются только игровые рубли. Ставка не меняет характеристики и не расходует игровое время.</p>
+  </div>`;
+}
+
+function openCasinoMenuV210(result = null, bet = 100) {
+  openModal('🎰', 'Казино', '', []);
+  document.getElementById('modalChoices').innerHTML = casinoPanelHtmlV210(bet, result);
+  setTimeout(() => document.getElementById('casinoBetV210')?.select(), 0);
+}
+
+function casinoOutcomeV210() {
+  const roll = Math.random();
+  if (roll < CASINO_ZERO_CHANCE_V210) return 'zero';
+  if (roll < CASINO_ZERO_CHANCE_V210 + CASINO_RED_CHANCE_V210) return 'red';
+  return 'black';
+}
+
+function playCasinoV210(choice) {
+  if (!Object.prototype.hasOwnProperty.call(CASINO_PAYOUTS_V210, choice)) return;
+  const input = document.getElementById('casinoBetV210');
+  const bet = casinoSafeBetV210(input?.value);
+
+  if (bet < 1) {
+    showToast('Введите ставку от 1 ₽');
+    input?.focus();
+    return;
+  }
+  if (bet > state.rubles) {
+    showToast('Недостаточно игровых рублей');
+    input?.focus();
+    return;
+  }
+
+  state.rubles -= bet;
+  const outcome = casinoOutcomeV210();
+  const won = outcome === choice;
+  let payout = 0;
+  if (won) {
+    payout = bet * CASINO_PAYOUTS_V210[choice];
+    state.rubles += payout;
+  }
+
+  saveState();
+  renderAll();
+
+  const net = won ? payout - bet : -bet;
+  const message = won
+    ? `Вы выиграли ${fmt(payout)} ₽. Чистая прибыль: +${fmt(net)} ₽.`
+    : `Ставка ${fmt(bet)} ₽ проиграна.`;
+  openCasinoMenuV210({ outcome, won, message }, bet);
+  haptic(won ? 'medium' : 'light');
+}
+
+const performActionBeforeV210 = performAction;
+performAction = function(id) {
+  if (id === 'casino_v210') {
+    if (state.gameOver) {
+      showDeathScreen();
+      return;
+    }
+    openCasinoMenuV210();
+    return;
+  }
+  return performActionBeforeV210(id);
+};
+
+const actionMoneyBeforeV210 = actionMoney;
+actionMoney = function(action) {
+  if (action?.id === 'casino_v210') return 'Открыть';
+  return actionMoneyBeforeV210(action);
+};
+
+document.addEventListener('click', event => {
+  const quick = event.target.closest('[data-casino-quick-v210]');
+  if (quick) {
+    const input = document.getElementById('casinoBetV210');
+    if (!input) return;
+    const value = quick.dataset.casinoQuickV210;
+    input.value = value === 'all' ? Math.max(1, Math.floor(state.rubles)) : value;
+    input.focus();
+    return;
+  }
+
+  const betButton = event.target.closest('[data-casino-bet-v210]');
+  if (betButton) playCasinoV210(betButton.dataset.casinoBetV210);
+});
+
+const tutorialFunV210 = tutorialStepsV28.find(step => step.category === 'fun');
+if (tutorialFunV210) {
+  tutorialFunV210.text = 'Развлечения повышают счастье. Действие «Депнуть в казик» открывает отдельное казино: оно меняет только количество игровых рублей и не влияет на характеристики.';
+}
+
+normalize();
+saveState();
+renderAll();
+
+
+// ========================= v2.10.1 — ordered action prices and correct election display =========================
+// Health prices now rise in the same order as the action cards:
+// free rest → 120 → 250 → 350 → 500 → 1 500 → 4 000 → 12 000 → 30 000 ₽.
+const washUpActionV2101 = actions.find(action => action.id === 'wash_up');
+if (washUpActionV2101) washUpActionV2101.cost = 350;
+
+// The presidential entry fee is fixed and must not be multiplied by difficulty
+// in the card text. The availability check and actual charge already use this value.
+const actionMoneyBeforeV2101 = actionMoney;
+actionMoney = function(action) {
+  if (action?.id === 'election') return `−${fmt(ELECTION_ENTRY_COST_V27)} ₽`;
+  return actionMoneyBeforeV2101(action);
+};
 
 normalize();
 saveState();

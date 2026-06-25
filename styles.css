@@ -677,3 +677,145 @@ body.tutorial-open-v287{overscroll-behavior:none!important}
     overscroll-behavior-y:none!important;
   }
 }
+
+/* ========================= v2.10 — casino ========================= */
+.casino-panel-v210 {
+  display: grid;
+  gap: 14px;
+  text-align: left;
+}
+
+.casino-balance-v210 {
+  padding: 13px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.045);
+  text-align: center;
+  font-size: 15px;
+}
+
+.casino-balance-v210 strong {
+  font-size: 18px;
+}
+
+.casino-odds-v210 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--muted, #aeb5c2);
+}
+
+.casino-result-v210 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.casino-result-v210.win {
+  background: rgba(43, 180, 104, 0.12);
+}
+
+.casino-result-v210.loss {
+  background: rgba(220, 67, 67, 0.11);
+}
+
+.casino-result-v210 strong,
+.casino-result-v210 span {
+  display: block;
+}
+
+.casino-result-v210 span {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--muted, #aeb5c2);
+}
+
+.casino-result-ball-v210 {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 900;
+  border: 3px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.35);
+}
+
+.casino-result-ball-v210.red { background: #c93b42; }
+.casino-result-ball-v210.black { background: #17191d; }
+.casino-result-ball-v210.zero { background: #188750; }
+
+.casino-bet-label-v210 {
+  font-size: 13px;
+  color: var(--muted, #aeb5c2);
+}
+
+.casino-bet-wrap-v210 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.casino-bet-input-v210 {
+  width: 100%;
+  min-width: 0;
+  padding: 13px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.casino-quick-v210,
+.casino-bets-v210 {
+  display: grid;
+  gap: 8px;
+}
+
+.casino-quick-v210 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.casino-quick-v210 button,
+.casino-bet-button-v210 {
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.casino-quick-v210 button {
+  color: inherit;
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.casino-bet-button-v210 {
+  color: #fff;
+}
+
+.casino-bet-button-v210.red { background: #b92f39; }
+.casino-bet-button-v210.black { background: #17191d; border: 1px solid rgba(255, 255, 255, 0.14); }
+.casino-bet-button-v210.zero { background: #147244; }
+
+.casino-note-v210 {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--muted, #aeb5c2);
+}
