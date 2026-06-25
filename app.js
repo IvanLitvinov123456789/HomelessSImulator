@@ -4669,7 +4669,8 @@ function casinoSafeBetV210(value) {
 
 function casinoPanelHtmlV210(bet = 100, result = null) {
   const balance = Math.max(0, Math.floor(Number(state.rubles) || 0));
-  const safeBet = Math.max(1, Math.min(Math.max(1, balance), casinoSafeBetV210(bet) || 100));
+  const requestedBet = casinoSafeBetV210(bet);
+  const safeBet = balance > 0 ? Math.min(balance, requestedBet > 0 ? requestedBet : 100) : 0;
   const resultHtml = result ? `
     <div class="casino-result-v210 ${result.won ? 'win' : 'loss'}">
       <div class="casino-result-ball-v210 ${result.outcome}">${result.outcome === 'zero' ? '0' : result.outcome === 'red' ? 'R' : 'B'}</div>
@@ -4689,7 +4690,7 @@ function casinoPanelHtmlV210(bet = 100, result = null) {
     ${resultHtml}
     <label class="casino-bet-label-v210" for="casinoBetV210">Размер ставки</label>
     <div class="casino-bet-wrap-v210">
-      <input id="casinoBetV210" class="casino-bet-input-v210" type="number" min="1" max="${Math.max(1, balance)}" step="1" value="${safeBet}" inputmode="numeric" aria-label="Размер ставки в рублях" />
+      <input id="casinoBetV210" class="casino-bet-input-v210" type="number" min="0" max="${balance}" step="1" value="${safeBet}" inputmode="numeric" aria-label="Размер ставки в рублях" />
       <span>₽</span>
     </div>
     <div class="casino-quick-v210">
@@ -4710,7 +4711,6 @@ function casinoPanelHtmlV210(bet = 100, result = null) {
 function openCasinoMenuV210(result = null, bet = 100) {
   openModal('🎰', 'Казино', '', []);
   document.getElementById('modalChoices').innerHTML = casinoPanelHtmlV210(bet, result);
-  setTimeout(() => document.getElementById('casinoBetV210')?.select(), 0);
 }
 
 function casinoOutcomeV210() {
@@ -4725,14 +4725,14 @@ function playCasinoV210(choice) {
   const input = document.getElementById('casinoBetV210');
   const bet = casinoSafeBetV210(input?.value);
 
+  input?.blur();
+
   if (bet < 1) {
-    showToast('Введите ставку от 1 ₽');
-    input?.focus();
+    showToast('Введите ставку больше 0 ₽');
     return;
   }
   if (bet > state.rubles) {
     showToast('Недостаточно игровых рублей');
-    input?.focus();
     return;
   }
 
@@ -4781,8 +4781,8 @@ document.addEventListener('click', event => {
     const input = document.getElementById('casinoBetV210');
     if (!input) return;
     const value = quick.dataset.casinoQuickV210;
-    input.value = value === 'all' ? Math.max(1, Math.floor(state.rubles)) : value;
-    input.focus();
+    input.value = value === 'all' ? Math.max(0, Math.floor(state.rubles)) : value;
+    input.blur();
     return;
   }
 
@@ -4817,3 +4817,8 @@ actionMoney = function(action) {
 normalize();
 saveState();
 renderAll();
+
+
+// ========================= v2.10.2 — mobile casino keyboard =========================
+// The numeric keyboard opens only after the player taps the amount field.
+// Casino buttons never focus the input, and a zero/empty bet cannot start a spin.
