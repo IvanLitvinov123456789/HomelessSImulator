@@ -1,7 +1,7 @@
 ﻿@echo off
 setlocal
 cd /d "%~dp0"
-set "PORT=9290"
+set "PORT=9291"
 
 where py >nul 2>&1
 if not errorlevel 1 goto use_py
@@ -17,13 +17,13 @@ pause
 exit /b 1
 
 :use_py
-echo Server v2.8.10: http://127.0.0.1:%PORT%/index.html
+echo Server v2.9.1: http://127.0.0.1:%PORT%/index.html
 py -m http.server %PORT% --bind 127.0.0.1
 if errorlevel 1 goto server_failed
 exit /b 0
 
 :use_python
-echo Server v2.8.10: http://127.0.0.1:%PORT%/index.html
+echo Server v2.9.1: http://127.0.0.1:%PORT%/index.html
 python -m http.server %PORT% --bind 127.0.0.1
 if errorlevel 1 goto server_failed
 exit /b 0

@@ -419,8 +419,8 @@ const actions = [
     "id": "first_aid",
     "cat": "health",
     "icon": "🩹",
-    "name": "Сходить в бесплатный медпункт",
-    "desc": "Базовая бесплатная медицинская помощь.",
+    "name": "Сходить в медпункт",
+    "desc": "Базовая недорогая медицинская помощь.",
     "hours": 4,
     "health": 5,
     "happiness": -2,
@@ -633,7 +633,7 @@ const actions = [
     "id": "newspaper",
     "cat": "education",
     "icon": "📰",
-    "name": "Почитать бесплатную газету",
+    "name": "Купить и почитать газету",
     "desc": "Самый простой способ немного повысить кругозор.",
     "hours": 2,
     "hunger": -4,
@@ -645,7 +645,7 @@ const actions = [
     "id": "free_lesson",
     "cat": "education",
     "icon": "✏️",
-    "name": "Посетить бесплатный урок",
+    "name": "Посетить вводный урок",
     "desc": "Получить базовые знания без оплаты.",
     "hours": 3,
     "hunger": -6,
@@ -1540,9 +1540,16 @@ function buyUsdCost(amount=100){ return Math.ceil(buyUsdRate()*amount); }
 function sellUsdRevenue(amount=100){ return Math.floor(sellUsdRate()*amount); }
 function updateExchangeRate(){
   state.previousExchangeRate=state.exchangeRate;
-  const randomChange=(Math.random()*6)-3;
-  const dailyChangePercent=Math.max(-3,Math.min(3,randomChange+(Number(state.exchangeRateBias)||0)));
-  state.exchangeRate=clampRate(state.exchangeRate*(1+dailyChangePercent/100));
+  // Каждый игровой день курс обязательно меняется на 5–10 рублей вверх или вниз.
+  // Событийный уклон влияет только на вероятность направления, но не нарушает диапазон изменения.
+  const bias=Math.max(-2,Math.min(2,Number(state.exchangeRateBias)||0));
+  const probabilityUp=Math.max(0.2,Math.min(0.8,0.5+bias*0.15));
+  const magnitude=5+Math.random()*5;
+  let direction=Math.random()<probabilityUp?1:-1;
+  // У границ диапазона выбираем направление внутрь, чтобы фактическое изменение не было меньше 5 ₽.
+  if(state.exchangeRate+magnitude>110) direction=-1;
+  if(state.exchangeRate-magnitude<30) direction=1;
+  state.exchangeRate=clampRate(state.exchangeRate+(direction*magnitude));
   state.exchangeRateBias=0;
 }
 function exchangeTrend(){
@@ -4415,3 +4422,225 @@ renderAll();
 
 // ========================= v2.8.10 — election progress navigation fix =========================
 // The chapter goal "Победить на президентских выборах" now opens the Politics action category.
+
+
+// ========================= v2.8.11 — dollar rate daily range =========================
+
+
+// ========================= v2.9.1 — work costs restored, paid actions retained elsewhere =========================
+const EXCHANGE_MAX_USD_V2814 = 100000000;
+
+// Keep exactly one free action in Food, Health and Fun. Education, Media and
+// Politics remain paid. Work is restored to income-only actions without a ruble fee.
+const actionCostsV2814 = {
+  // Health: only "rest" remains free.
+  first_aid: 120,
+  sleep: 250,
+
+  // Fun: only "music" remains free.
+  park: 150,
+
+  // Work: travel, tools and other work-related expenses.
+  beg: 20,
+  bottles: 30,
+  flyers: 50,
+  car_wash: 100,
+  loader: 180,
+  cleaner: 250,
+  courier: 400,
+  seller: 600,
+  taxi: 1200,
+  tutor: 1000,
+  office: 1800,
+  director: 8000,
+  usd_freelance: 2500,
+  usd_contract: 12000,
+  job_shift: 500,
+
+  // Education.
+  newspaper: 50,
+  free_lesson: 150,
+  library: 300,
+
+  // Media.
+  short_post: 50,
+  trash_blog: 100,
+  comments: 150,
+  metro_show: 250,
+  volunteer: 300,
+
+  // Politics.
+  residents_meeting: 300,
+  public_appeal: 500,
+  campaign_helper: 1000
+};
+
+Object.entries(actionCostsV2814).forEach(([id, cost]) => {
+  const action = actions.find(item => item.id === id);
+  if (action) action.cost = cost;
+});
+
+// v2.9.1: Work actions are restored to their original behavior.
+// They give income and consume time/status, but do not charge rubles.
+const workActionIdsV291 = [
+  'beg','bottles','flyers','car_wash','loader','cleaner','courier','seller',
+  'taxi','tutor','office','director','usd_freelance','usd_contract','job_shift'
+];
+workActionIdsV291.forEach(id => {
+  const action = actions.find(item => item.id === id);
+  if (action) delete action.cost;
+});
+
+// Text must match the new prices.
+const firstAidV2814 = actions.find(item => item.id === 'first_aid');
+if (firstAidV2814) {
+  firstAidV2814.name = 'Сходить в медпункт';
+  firstAidV2814.desc = 'Базовая недорогая медицинская помощь.';
+}
+const sleepV2814 = actions.find(item => item.id === 'sleep');
+if (sleepV2814) sleepV2814.desc = 'Оплатить место для сна и восстановиться, пропустив значительную часть дня.';
+const parkV2814 = actions.find(item => item.id === 'park');
+if (parkV2814) parkV2814.desc = 'Спокойная прогулка с небольшими расходами.';
+const newspaperV2814 = actions.find(item => item.id === 'newspaper');
+if (newspaperV2814) {
+  newspaperV2814.name = 'Купить и почитать газету';
+  newspaperV2814.desc = 'Недорогой способ узнать новое и немного повысить образование.';
+}
+const freeLessonV2814 = actions.find(item => item.id === 'free_lesson');
+if (freeLessonV2814) {
+  freeLessonV2814.name = 'Посетить вводный урок';
+  freeLessonV2814.desc = 'Недорогой вводный урок для начала обучения.';
+}
+
+// Display work income normally; v2.9.1 removes work expenses.
+actionMoney = function(action) {
+  const cost = scaledCost(action.cost || 0);
+  if (action.id === 'job_shift' && state.currentJob) {
+    const pay = jobSalaryV22(state.currentJob, state.currentJob.branch);
+    return cost ? `−${fmt(cost)} ₽ · +${fmt(pay)} ₽` : `+${fmt(pay)} ₽`;
+  }
+  if (action.max) {
+    const multiplier = difficultyCfg().income;
+    const min = fmt(Math.round(action.min * multiplier));
+    const max = fmt(Math.round(action.max * multiplier));
+    const reward = action.currency === 'USD'
+      ? `+$${min}–$${max}`
+      : `+${min}–${max} ₽`;
+    return cost ? `−${fmt(cost)} ₽ · ${reward}` : reward;
+  }
+  if (cost) return `−${fmt(cost)} ₽`;
+  return 'Бесплатно';
+};
+
+// The permanent-job shift is custom; no ruble expense is charged in v2.9.1.
+const performJobShiftBeforeV2814 = performJobShift;
+performJobShift = function() {
+  if (!state.currentJob) {
+    showToast('Сначала устройтесь на работу');
+    return;
+  }
+  const shift = actions.find(item => item.id === 'job_shift');
+  const cost = scaledCost(shift?.cost || 0);
+  if (cost && state.rubles < cost) {
+    showToast('Недостаточно рублей');
+    return;
+  }
+  if (cost) spend(cost);
+  performJobShiftBeforeV2814();
+};
+
+function rawExchangeAmountV2814() {
+  const input = document.getElementById('exchangeAmount');
+  const value = Math.floor(Number(input?.value));
+  return Number.isFinite(value) ? value : 0;
+}
+
+getExchangeAmount = function() {
+  return Math.max(1, Math.min(EXCHANGE_MAX_USD_V2814, rawExchangeAmountV2814()));
+};
+
+exchangePanelHtml = function(amount = 10) {
+  const safeAmount = Math.max(1, Math.min(EXCHANGE_MAX_USD_V2814, Math.floor(Number(amount) || 10)));
+  return `<div class="exchange-simple">
+    <div class="exchange-simple-rates">
+      <span>Купить <strong>${buyUsdRate().toFixed(2)} ₽</strong></span>
+      <span>Продать <strong>${sellUsdRate().toFixed(2)} ₽</strong></span>
+    </div>
+    <div class="exchange-simple-balance">${fmt(state.rubles)} ₽ &nbsp;·&nbsp; ${fmt(state.dollars)} $</div>
+    <div class="exchange-simple-balance">Максимум за одну операцию: ${fmt(EXCHANGE_MAX_USD_V2814)} $</div>
+    <div class="exchange-warning" id="exchangeWarning" hidden></div>
+    <div class="exchange-input-wrap"><span>$</span><input class="exchange-input" id="exchangeAmount" type="number" min="1" max="${EXCHANGE_MAX_USD_V2814}" step="1" value="${safeAmount}" inputmode="numeric" aria-label="Количество долларов" /></div>
+    <div class="exchange-actions">
+      <button class="exchange-buy" data-exchange="buy">Купить</button>
+      <button class="exchange-sell" data-exchange="sell">Продать</button>
+    </div>
+  </div>`;
+};
+
+exchangeCurrency = function(direction) {
+  if (state.gameOver) {
+    showDeathScreen();
+    return;
+  }
+  const rawAmount = rawExchangeAmountV2814();
+  if (rawAmount < 1) {
+    showExchangeWarningV22('Введите количество долларов от 1 до 100 000 000');
+    return;
+  }
+  if (rawAmount > EXCHANGE_MAX_USD_V2814) {
+    showExchangeWarningV22(`За одну операцию можно обменять не более ${fmt(EXCHANGE_MAX_USD_V2814)} $`);
+    return;
+  }
+  const amount = rawAmount;
+  if (direction === 'buy') {
+    const cost = buyUsdCost(amount);
+    if (state.rubles < cost) {
+      showExchangeWarningV22(`Не хватает рублей: для покупки ${fmt(amount)} $ нужно ${fmt(cost)} ₽`);
+      return;
+    }
+    state.rubles -= cost;
+    state.dollars += amount;
+    showToast(`Куплено ${fmt(amount)} $ за ${fmt(cost)} ₽`);
+  } else {
+    if (state.dollars < amount) {
+      showExchangeWarningV22(`Не хватает долларов: для продажи нужно ${fmt(amount)} $`);
+      return;
+    }
+    const revenue = sellUsdRevenue(amount);
+    state.dollars -= amount;
+    state.rubles += revenue;
+    showToast(`Продано ${fmt(amount)} $ за ${fmt(revenue)} ₽`);
+  }
+  state.actionsDone++;
+  advanceTime(1);
+  if (state.gameOver) return;
+  saveState();
+  renderAll();
+  if (document.getElementById('modalTitle').textContent === 'Обмен валют') {
+    document.getElementById('modalText').textContent = '';
+    document.getElementById('modalChoices').innerHTML = exchangePanelHtml(amount);
+  }
+  haptic('medium');
+};
+
+// Keep onboarding and help consistent with the new action pricing.
+const tutorialFoodV2814 = tutorialStepsV28.find(step => step.category === 'food' && step.title.includes('Еда'));
+if (tutorialFoodV2814) tutorialFoodV2814.text = 'Еда восстанавливает сытость. Бесплатным остаётся только поиск еды, остальные варианты требуют рублей и дают более сильный эффект.';
+const tutorialHealthV2814 = tutorialStepsV28.find(step => step.category === 'health');
+if (tutorialHealthV2814) tutorialHealthV2814.text = 'Здоровье восстанавливается лечением и отдыхом. Бесплатно можно только отдохнуть на лавке, остальные способы требуют рублей.';
+const tutorialFunV2814 = tutorialStepsV28.find(step => step.category === 'fun');
+if (tutorialFunV2814) tutorialFunV2814.text = 'Развлечения повышают счастье. Бесплатно можно послушать музыку, остальные развлечения требуют денег.';
+const tutorialWorkV2814 = tutorialStepsV28.find(step => step.category === 'work');
+if (tutorialWorkV2814) tutorialWorkV2814.text = 'Работа приносит деньги, расходует время, здоровье, сытость и счастье, но не требует оплаты рублями. На карточке указан возможный доход.';
+
+const helpMoneyV2814 = document.getElementById('help-money');
+if (helpMoneyV2814 && !helpMoneyV2814.querySelector('[data-v2814-help]')) {
+  const note = document.createElement('p');
+  note.dataset.v2814Help = 'true';
+  note.textContent = 'В разделах «Еда», «Здоровье» и «Развлечения» есть по одному бесплатному действию. Учёба, медиа и политика требуют рублей, а работа приносит доход без отдельной платы за действие.';
+  helpMoneyV2814.appendChild(note);
+}
+
+normalize();
+saveState();
+renderAll();
